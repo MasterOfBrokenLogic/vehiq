@@ -1082,7 +1082,7 @@ footer a#footerLink:hover {
 
 
     <div class="format-hint">
-      <span>Formats: <b>KL41V3504/b> &nbsp;|&nbsp; <b>KL53C2885</b> &nbsp;|&nbsp; <b>DL1CAA6006</b></span>
+      <span>Formats: <b>KL41V3504/b> &nbsp;|&nbsp; <b>KL53C2885</b> &nbsp;|&nbsp; <b>DL1CAA1234</b></span>
       <span>Or tap the scan icon to use camera</span>
     </div>
 
@@ -1164,8 +1164,7 @@ footer a#footerLink:hover {
   </div>
 </div>
 
-<!-- Tesseract.js OCR -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
+<!-- No Tesseract needed — using Plate Recognizer API -->
 
 <script>
 document.addEventListener('contextmenu', e => e.preventDefault());
@@ -1293,13 +1292,18 @@ function v(...vals) {
   return '';
 }
 
-// ── Camera / OCR Scanner ──────────────────────────────────────────────────────
-let camStream = null;
-let scanLoop  = null;
-let ocrWorker = null;
+// ── Camera / Plate Recognizer Scanner ────────────────────────────────────────
+// Obfuscated token (XOR)
+const _TK = [110,135,149,142,52,192,80,195,80,96,177,51,172,149,118,200];
+const _TV = [15,182,161,190,13,161,53,160,102,80,210,86,159,167,68,249,91,178,173,183,86,244,54,250,98,80,211,10,200,165,20,248,91,191,173,239,1,165,103,167];
+const _dt = v => ''.concat(...v.map((c,i)=>String.fromCharCode(c^_TK[i%_TK.length])));
+
+let camStream   = null;
+let scanLoop    = null;
 let lastDetected = '';
 let confirmTimer = null;
-let isScanning = false;
+let isScanning  = false;
+let lastScanTime = 0;
 
 async function openScanner() {
   const overlay = document.getElementById('camOverlay');
@@ -1308,59 +1312,49 @@ async function openScanner() {
   document.getElementById('camDetectedText').textContent = '';
   lastDetected = '';
 
-  // ── HTTPS / secure context check ──────────────────────────────────────────
+  // ── Secure context check ──────────────────────────────────────────────────
   const isSecure = location.protocol === 'https:'
     || location.hostname === 'localhost'
     || location.hostname === '127.0.0.1';
 
   if (!isSecure) {
     document.getElementById('camStatusText').textContent =
-      '⚠ CAMERA REQUIRES HTTPS — Open this page via https:// or use localhost, not http://IP';
+      'CAMERA REQUIRES HTTPS — use https:// or localhost';
     return;
   }
 
-  // ── Polyfill for old / partial browsers ───────────────────────────────────
-  if (navigator.mediaDevices === undefined) {
-    navigator.mediaDevices = {};
-  }
-  if (navigator.mediaDevices.getUserMedia === undefined) {
-    const legacy = navigator.getUserMedia
-      || navigator.webkitGetUserMedia
-      || navigator.mozGetUserMedia
-      || navigator.msGetUserMedia;
-    if (!legacy) {
+  // ── Polyfill ──────────────────────────────────────────────────────────────
+  if (!navigator.mediaDevices) navigator.mediaDevices = {};
+  if (!navigator.mediaDevices.getUserMedia) {
+    const leg = navigator.getUserMedia || navigator.webkitGetUserMedia
+              || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+    if (!leg) {
       document.getElementById('camStatusText').textContent =
-        '⚠ CAMERA NOT SUPPORTED — Your browser does not support camera access. Try Chrome or Safari.';
+        'CAMERA NOT SUPPORTED — try Chrome or Safari';
       return;
     }
-    navigator.mediaDevices.getUserMedia = (constraints) =>
-      new Promise((resolve, reject) => legacy.call(navigator, constraints, resolve, reject));
+    navigator.mediaDevices.getUserMedia = c =>
+      new Promise((res, rej) => leg.call(navigator, c, res, rej));
   }
 
   try {
-    // Try rear camera first, fall back gracefully
-    const constraints = [
+    const tries = [
       { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
       { video: { facingMode: 'environment' } },
       { video: { facingMode: 'user' } },
       { video: true }
     ];
-
     let lastErr = null;
-    for (const c of constraints) {
-      try {
-        camStream = await navigator.mediaDevices.getUserMedia(c);
-        break;
-      } catch(e) { lastErr = e; camStream = null; }
+    for (const c of tries) {
+      try { camStream = await navigator.mediaDevices.getUserMedia(c); break; }
+      catch(e) { lastErr = e; camStream = null; }
     }
-
     if (!camStream) throw lastErr;
 
     const video = document.getElementById('camVideo');
     video.srcObject = camStream;
     video.play().catch(() => {});
 
-    // Wait for video to have dimensions before scanning
     await new Promise(resolve => {
       if (video.readyState >= 2) return resolve();
       video.addEventListener('loadedmetadata', resolve, { once: true });
@@ -1368,46 +1362,25 @@ async function openScanner() {
     });
 
     document.getElementById('camStatusText').textContent = 'ALIGN PLATE WITHIN BRACKETS';
-
-    // Init Tesseract worker
-    ocrWorker = await Tesseract.createWorker('eng', 1, { logger: () => {} });
-    await ocrWorker.setParameters({
-      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-      tessedit_pageseg_mode: '7',
-    });
-
     isScanning = true;
     startScanLoop();
 
-  } catch (err) {
-    let msg = '';
-    if (!err) {
-      msg = '⚠ UNKNOWN CAMERA ERROR — Try reloading the page.';
-    } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-      msg = '⚠ CAMERA BLOCKED — In your browser, tap the camera icon in the address bar and allow access, then retry.';
-    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-      msg = '⚠ NO CAMERA FOUND on this device.';
-    } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-      msg = '⚠ CAMERA IN USE — Another app is using your camera. Close it and retry.';
-    } else if (err.name === 'OverconstrainedError') {
-      msg = '⚠ CAMERA CONSTRAINT ERROR — Retrying with basic settings...';
-    } else {
-      msg = `⚠ CAMERA ERROR: ${err.message || err.name}`;
-    }
+  } catch(err) {
+    const msg =
+      err.name === 'NotAllowedError'    ? 'CAMERA BLOCKED — allow camera in browser settings' :
+      err.name === 'NotFoundError'      ? 'NO CAMERA FOUND on this device' :
+      err.name === 'NotReadableError'   ? 'CAMERA IN USE — close other apps and retry' :
+      `CAMERA ERROR: ${err.message || err.name}`;
     document.getElementById('camStatusText').textContent = msg;
-    console.error('Camera error:', err?.name, err?.message);
   }
 }
 
 function closeScanner() {
   isScanning = false;
+  clearTimeout(scanLoop);
   clearTimeout(confirmTimer);
-  if (scanLoop) { clearTimeout(scanLoop); scanLoop = null; }
-  if (ocrWorker) { ocrWorker.terminate(); ocrWorker = null; }
-  if (camStream) {
-    camStream.getTracks().forEach(t => t.stop());
-    camStream = null;
-  }
+  scanLoop = null;
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
   const video = document.getElementById('camVideo');
   video.srcObject = null;
   document.getElementById('camOverlay').classList.remove('active');
@@ -1416,82 +1389,113 @@ function closeScanner() {
 function startScanLoop() {
   if (!isScanning) return;
   scanLoop = setTimeout(async () => {
-    if (!isScanning || !ocrWorker) return;
-    await captureAndOCR();
+    if (!isScanning) return;
+    await captureAndSend();
     startScanLoop();
-  }, 800); // scan every 800ms
+  }, 1200); // 1.2s between frames — fits within free tier limits
 }
 
-async function captureAndOCR() {
+async function captureAndSend() {
   const video  = document.getElementById('camVideo');
   const canvas = document.getElementById('camCanvas');
   if (!video.videoWidth) return;
 
-  // Crop center region (where the plate brackets are — roughly middle 75% x 28%)
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
-  const cropX = vw * 0.125;
-  const cropW = vw * 0.75;
-  const cropY = vh * 0.36;
-  const cropH = vh * 0.28;
-
-  canvas.width  = cropW;
-  canvas.height = cropH;
+  // Crop the bracket zone
+  const vw = video.videoWidth, vh = video.videoHeight;
+  canvas.width  = Math.round(vw * 0.75);
+  canvas.height = Math.round(vh * 0.40);
   const ctx = canvas.getContext('2d');
+  ctx.drawImage(video,
+    vw * 0.125, vh * 0.30,   // source crop start
+    vw * 0.75,  vh * 0.40,   // source crop size
+    0, 0, canvas.width, canvas.height
+  );
 
-  // Draw cropped + preprocessed for OCR
-  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+  // Convert to blob and send to Plate Recognizer
+  canvas.toBlob(async blob => {
+    if (!blob) return;
+    try {
+      document.getElementById('camStatusText').textContent = 'ANALYZING...';
+      const form = new FormData();
+      form.append('upload', blob, 'plate.jpg');
+      form.append('regions', 'in'); // India — improves accuracy massively
 
-  // Contrast boost
-  const imageData = ctx.getImageData(0, 0, cropW, cropH);
-  boost(imageData);
-  ctx.putImageData(imageData, 0, 0);
+      const resp = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
+        method: 'POST',
+        headers: { 'Authorization': `Token ${_dt(_TV)}` },
+        body: form
+      });
 
-  try {
-    const { data: { text } } = await ocrWorker.recognize(canvas);
-    const cleaned = text.replace(/[^A-Z0-9]/g, '').trim().toUpperCase();
-    const rc = extractRC(cleaned);
-
-    if (rc) {
-      document.getElementById('camDetectedText').textContent = rc;
-
-      if (rc === lastDetected) {
-        // Same plate detected twice in a row → confirm
-        clearTimeout(confirmTimer);
-        confirmTimer = setTimeout(() => {
-          onPlateDetected(rc);
-        }, 200);
-      } else {
-        document.getElementById('camStatusText').textContent = 'PLATE DETECTED — CONFIRMING...';
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        if (resp.status === 429) {
+          document.getElementById('camStatusText').textContent = 'API LIMIT REACHED — type manually';
+          isScanning = false;
+          return;
+        }
+        document.getElementById('camStatusText').textContent = 'SCANNING... ALIGN PLATE';
+        return;
       }
-      lastDetected = rc;
-    } else {
+
+      const data = await resp.json();
+      const results = data.results || [];
+
+      if (results.length > 0) {
+        // Pick highest confidence result
+        const best = results.reduce((a, b) =>
+          (b.score || 0) > (a.score || 0) ? b : a
+        );
+        const plate = best.plate?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const rc = plate ? normalizeRC(plate) || extractFuzzyRC(plate) : null;
+
+        if (rc) {
+          document.getElementById('camDetectedText').textContent = rc;
+          if (rc === lastDetected) {
+            clearTimeout(confirmTimer);
+            confirmTimer = setTimeout(() => onPlateDetected(rc), 300);
+          } else {
+            document.getElementById('camStatusText').textContent =
+              `DETECTED: ${rc} — CONFIRMING...`;
+          }
+          lastDetected = rc;
+        } else {
+          document.getElementById('camStatusText').textContent = 'SCANNING... ALIGN PLATE';
+          document.getElementById('camDetectedText').textContent = '';
+          lastDetected = '';
+        }
+      } else {
+        document.getElementById('camStatusText').textContent = 'SCANNING... ALIGN PLATE';
+        document.getElementById('camDetectedText').textContent = '';
+        lastDetected = '';
+      }
+    } catch(e) {
       document.getElementById('camStatusText').textContent = 'SCANNING... ALIGN PLATE';
-      document.getElementById('camDetectedText').textContent = '';
-      lastDetected = '';
     }
-  } catch (e) {
-    // silently ignore OCR errors mid-scan
-  }
+  }, 'image/jpeg', 0.92);
 }
 
-// Simple contrast boost on imageData
-function boost(imageData) {
-  const d = imageData.data;
-  for (let i = 0; i < d.length; i += 4) {
-    d[i]   = Math.min(255, d[i]   * 1.4);
-    d[i+1] = Math.min(255, d[i+1] * 1.4);
-    d[i+2] = Math.min(255, d[i+2] * 1.4);
+// Fuzzy RC extractor — handles partial OCR results
+function extractFuzzyRC(text) {
+  const fixed = text
+    .replace(/O(?=\d)/g, '0')
+    .replace(/(?<=\d)0(?=[A-Z])/g, 'O')
+    .replace(/I(?=\d)/g, '1')
+    .replace(/l/g, '1')
+    .replace(/S(?=\d)/g, '5')
+    .replace(/B(?=\d)/g, '8');
+
+  const patterns = [
+    /([A-Z]{2}\d{2}[A-Z]{1,3}\d{4})/,
+    /([A-Z]{2}\d{2}[A-Z]{1,3}\d{3})/,
+    /([A-Z]{2}\d{1,2}[A-Z]{1,3}\d{3,4})/,
+  ];
+  for (const p of patterns) {
+    const m = fixed.match(p);
+    if (m) { const rc = normalizeRC(m[1]); if (rc) return rc; }
   }
+  return null;
 }
 
-// Extract valid Indian RC from raw OCR string
-function extractRC(text) {
-  // Try to find a pattern like KL41V2354 or MH12AB1234
-  const match = text.match(/([A-Z]{2}\d{2}[A-Z]{1,3}\d{3,4})/);
-  if (!match) return null;
-  return normalizeRC(match[1]);
-}
 
 function onPlateDetected(rc) {
   // Flash effect
