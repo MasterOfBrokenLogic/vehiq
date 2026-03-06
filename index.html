@@ -635,14 +635,71 @@ header {
   z-index: 10;
 }
 
-.detect-flash.flash {
-  animation: flashAnim 0.4s ease;
-}
+.detect-flash.flash { animation: flashAnim 0.4s ease; }
 
 @keyframes flashAnim {
   0%   { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* ── Crop tool ───────────────────────────────────────────────────────────── */
+#cropStage {
+  display: none;
+  flex-direction: column;
+  width: 100%;
+  background: #000;
+  position: relative;
+}
+
+#cropCanvas {
+  width: 100%;
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+  max-height: 52vw;
+  object-fit: contain;
+}
+
+.crop-hint {
+  position: absolute;
+  top: 8px; left: 0; right: 0;
+  text-align: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--green);
+  letter-spacing: 2px;
+  pointer-events: none;
+  text-shadow: 0 0 8px rgba(0,255,136,0.8);
+}
+
+/* Edit plate input in confirm screen */
+.plate-edit-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+#plateEditInput {
+  background: rgba(0,0,0,0.7);
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(18px, 5vw, 26px);
+  letter-spacing: 4px;
+  text-align: center;
+  padding: 6px 12px;
+  text-transform: uppercase;
+  outline: none;
+  width: 220px;
+  caret-color: var(--green);
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+#plateEditInput::placeholder { color: rgba(0,255,136,0.3); }
 
 /* ── Format hint ─────────────────────────────────────────────────────────── */
 .format-hint {
@@ -1019,7 +1076,7 @@ footer a#footerLink:hover {
 <div class="container">
 
   <header>
-    <div class="logo">VEH<span>IQ</span></div>
+    <div class="logo" onclick="window.location.href=window.location.origin+window.location.pathname" style="cursor:pointer" title="Home">VEH<span>IQ</span></div>
     <div class="header-right">
       <div class="status-bar">
         <span><span class="status-dot"></span>ONLINE</span>
@@ -1146,14 +1203,12 @@ footer a#footerLink:hover {
       </button>
     </div>
 
-    <!-- VIEWFINDER (shown while camera is live) -->
+    <!-- STAGE 1: Live viewfinder -->
     <div class="cam-body" id="camViewfinder">
       <video id="camVideo" autoplay playsinline muted></video>
       <canvas id="camCanvas" style="display:none"></canvas>
       <div class="cam-scan-overlay">
-        <div class="cam-brackets">
-          <div class="bracket-frame"><span></span></div>
-        </div>
+        <div class="cam-brackets"><div class="bracket-frame"><span></span></div></div>
         <div class="cam-status">
           <span class="cam-status-text" id="camStatusText">ALIGN PLATE · THEN CAPTURE</span>
         </div>
@@ -1161,40 +1216,63 @@ footer a#footerLink:hover {
       </div>
     </div>
 
-    <!-- PREVIEW (shown after capture, before confirm) -->
+    <!-- STAGE 2: Crop tool (shown if needed) -->
+    <div id="cropStage">
+      <canvas id="cropCanvas"></canvas>
+      <div class="crop-hint">DRAG TO SELECT THE PLATE AREA</div>
+    </div>
+
+    <!-- STAGE 3: Preview + result -->
     <div class="cam-body" id="camPreview" style="display:none">
       <canvas id="previewCanvas" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
       <div class="cam-scan-overlay">
-        <div class="cam-status" style="background:linear-gradient(0deg,rgba(0,0,0,0.9),transparent)">
-          <div style="width:100%">
+        <div class="cam-status" style="background:linear-gradient(0deg,rgba(0,0,0,0.95),transparent);padding-bottom:14px">
+          <div style="width:100%;text-align:center">
             <div class="cam-status-text" id="previewStatusText">ANALYZING...</div>
-            <div class="cam-detected-text" id="camDetectedText" style="font-size:clamp(16px,5vw,26px);margin-top:4px;"></div>
+            <div class="plate-edit-wrap">
+              <input id="plateEditInput" type="text" maxlength="12"
+                placeholder="KL41V3504"
+                autocomplete="off" spellcheck="false" inputmode="text"
+                oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"/>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Footer: viewfinder state -->
-    <div class="cam-footer" id="footerViewfinder">
-      <div class="cam-tip">
-        <b>Aim</b> the plate inside the brackets, then tap <b>CAPTURE</b>.
-        Good lighting = perfect result.
+    <!-- Footer: viewfinder -->
+    <div class="cam-footer" id="footerViewfinder" style="flex-direction:column;gap:10px;padding:12px 16px">
+      <div style="width:100%;display:flex;align-items:center;gap:10px">
+        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;white-space:nowrap">🔍</span>
+        <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1"
+          style="flex:1;accent-color:var(--green);cursor:pointer;height:3px"
+          oninput="applyZoom(this.value)"/>
+        <span id="zoomLabel" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--green);letter-spacing:1px;min-width:32px;text-align:right">1.0×</span>
       </div>
-      <button class="capture-btn" id="captureBtn" onclick="capturePhoto()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="4" fill="currentColor"/>
-          <path d="M20 7h-2.5L16 5H8L6.5 7H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1z"/>
-        </svg>
-        CAPTURE
-      </button>
+      <div style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div class="cam-tip"><b>Aim</b> the plate in the brackets, tap <b>CAPTURE</b>.</div>
+        <button class="capture-btn" id="captureBtn" onclick="capturePhoto()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" fill="currentColor"/>
+            <path d="M20 7h-2.5L16 5H8L6.5 7H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1z"/>
+          </svg>
+          CAPTURE
+        </button>
+      </div>
     </div>
 
-    <!-- Footer: preview/confirm state -->
-    <div class="cam-footer" id="footerPreview" style="display:none">
-      <button class="cam-manual-btn" id="retakeBtn" onclick="retake()">RETAKE</button>
-      <button class="capture-btn" id="confirmBtn" onclick="confirmPlate()" disabled>
-        SEARCHING...
-      </button>
+    <!-- Footer: crop tool -->
+    <div class="cam-footer" id="footerCrop" style="display:none">
+      <div class="cam-tip">Select just the <b>number plate area</b>, then tap CROP.</div>
+      <button class="cam-manual-btn" onclick="skipCrop()">SKIP</button>
+      <button class="capture-btn" id="cropConfirmBtn" onclick="confirmCrop()">CROP &amp; ANALYZE</button>
+    </div>
+
+    <!-- Footer: preview/confirm -->
+    <div class="cam-footer" id="footerPreview" style="display:none;flex-wrap:wrap;gap:8px">
+      <button class="cam-manual-btn" onclick="retake()">RETAKE</button>
+      <button class="cam-manual-btn" id="cropBtn" onclick="openCropTool()">CROP</button>
+      <button class="capture-btn" id="confirmBtn" onclick="confirmPlate()" disabled>SEARCHING...</button>
     </div>
 
   </div>
@@ -1328,49 +1406,56 @@ function v(...vals) {
   return '';
 }
 
-// ── Camera / Plate Recognizer — Capture Mode ─────────────────────────────────
+// ── Camera / Plate Recognizer — Capture + Crop + Edit ────────────────────────
 const _TK = [110,135,149,142,52,192,80,195,80,96,177,51,172,149,118,200];
 const _TV = [15,182,161,190,13,161,53,160,102,80,210,86,159,167,68,249,91,178,173,183,86,244,54,250,98,80,211,10,200,165,20,248,91,191,173,239,1,165,103,167];
 const _dt = v => ''.concat(...v.map((c,i) => String.fromCharCode(c ^ _TK[i % _TK.length])));
 
-let camStream    = null;
-let capturedBlob = null;
-let detectedRC   = null;
+let camStream     = null;
+let fullImageData = null; // ImageData of full captured frame
+let cropRect      = null; // {x,y,w,h} in full image coords
+let detectedRC    = null;
 
+// ── Stage switching ───────────────────────────────────────────────────────────
+function showStage(stage) {
+  document.getElementById('camViewfinder').style.display  = stage === 'view'    ? '' : 'none';
+  document.getElementById('cropStage').style.display      = stage === 'crop'    ? 'flex' : 'none';
+  document.getElementById('camPreview').style.display     = stage === 'preview' ? '' : 'none';
+  document.getElementById('footerViewfinder').style.display = stage === 'view'    ? '' : 'none';
+  document.getElementById('footerCrop').style.display       = stage === 'crop'    ? '' : 'none';
+  document.getElementById('footerPreview').style.display    = stage === 'preview' ? '' : 'none';
+
+  const titles = { view: '// PLATE SCANNER', crop: '// CROP PLATE AREA', preview: '// CONFIRM PLATE' };
+  document.getElementById('camTitle').textContent = titles[stage] || '// SCANNER';
+}
+
+// ── Open / Close ──────────────────────────────────────────────────────────────
 async function openScanner() {
-  // Reset state
-  capturedBlob = null;
-  detectedRC   = null;
-  showViewfinder();
-
+  fullImageData = null; cropRect = null; detectedRC = null;
+  resetZoom();
+  showStage('view');
   document.getElementById('camOverlay').classList.add('active');
   document.getElementById('camStatusText').textContent = 'STARTING CAMERA...';
+  document.getElementById('captureBtn').disabled = true;
+  // Lock viewport so pinch-zoom goes to camera, not page
+  document.querySelector('meta[name=viewport]').content =
+    'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
 
-  // Secure context check
   const isSecure = location.protocol === 'https:'
-    || location.hostname === 'localhost'
-    || location.hostname === '127.0.0.1';
+    || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   if (!isSecure) {
-    document.getElementById('camStatusText').textContent =
-      'REQUIRES HTTPS — use https:// or localhost';
+    document.getElementById('camStatusText').textContent = 'REQUIRES HTTPS — use https:// or localhost';
     return;
   }
 
-  // Polyfill
   if (!navigator.mediaDevices) navigator.mediaDevices = {};
   if (!navigator.mediaDevices.getUserMedia) {
     const leg = navigator.getUserMedia || navigator.webkitGetUserMedia
               || navigator.mozGetUserMedia || navigator.msGetUserMedia;
-    if (!leg) {
-      document.getElementById('camStatusText').textContent =
-        'CAMERA NOT SUPPORTED — try Chrome or Safari';
-      return;
-    }
-    navigator.mediaDevices.getUserMedia = c =>
-      new Promise((res, rej) => leg.call(navigator, c, res, rej));
+    if (!leg) { document.getElementById('camStatusText').textContent = 'CAMERA NOT SUPPORTED — try Chrome'; return; }
+    navigator.mediaDevices.getUserMedia = c => new Promise((r,j) => leg.call(navigator,c,r,j));
   }
 
-  // Try rear cam, fall back gracefully
   const tries = [
     { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
     { video: { facingMode: 'environment' } },
@@ -1383,215 +1468,320 @@ async function openScanner() {
     catch(e) { lastErr = e; camStream = null; }
   }
   if (!camStream) {
-    const msg =
-      lastErr?.name === 'NotAllowedError'  ? 'CAMERA BLOCKED — allow in browser settings' :
-      lastErr?.name === 'NotFoundError'    ? 'NO CAMERA FOUND' :
-      lastErr?.name === 'NotReadableError' ? 'CAMERA IN USE — close other apps' :
-      `CAMERA ERROR: ${lastErr?.message || lastErr?.name}`;
+    const msg = lastErr?.name === 'NotAllowedError'  ? 'CAMERA BLOCKED — allow in browser settings'
+              : lastErr?.name === 'NotFoundError'    ? 'NO CAMERA FOUND'
+              : lastErr?.name === 'NotReadableError' ? 'CAMERA IN USE — close other apps'
+              : `CAMERA ERROR: ${lastErr?.message||lastErr?.name}`;
     document.getElementById('camStatusText').textContent = msg;
     return;
   }
 
   const video = document.getElementById('camVideo');
   video.srcObject = camStream;
-  video.play().catch(() => {});
+  video.play().catch(()=>{});
   await new Promise(resolve => {
     if (video.readyState >= 2) return resolve();
     video.addEventListener('loadedmetadata', resolve, { once: true });
     setTimeout(resolve, 3000);
   });
-
   document.getElementById('camStatusText').textContent = 'ALIGN PLATE · THEN CAPTURE';
   document.getElementById('captureBtn').disabled = false;
+  grabZoomTrack();
 }
 
 function closeScanner() {
   if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
   document.getElementById('camVideo').srcObject = null;
   document.getElementById('camOverlay').classList.remove('active');
-  capturedBlob = null;
-  detectedRC   = null;
+  fullImageData = null; cropRect = null; detectedRC = null;
+  // Restore normal viewport (allow page zoom again)
+  document.querySelector('meta[name=viewport]').content =
+    'width=device-width, initial-scale=1.0';
 }
 
-function showViewfinder() {
-  document.getElementById('camViewfinder').style.display = '';
-  document.getElementById('camPreview').style.display    = 'none';
-  document.getElementById('footerViewfinder').style.display = '';
-  document.getElementById('footerPreview').style.display    = 'none';
-  document.getElementById('camTitle').textContent = '// PLATE SCANNER';
-  document.getElementById('captureBtn').disabled  = false;
-  document.getElementById('captureBtn').textContent = 'CAPTURE';
-}
-
-function showPreview() {
-  document.getElementById('camViewfinder').style.display = 'none';
-  document.getElementById('camPreview').style.display    = '';
-  document.getElementById('footerViewfinder').style.display = 'none';
-  document.getElementById('footerPreview').style.display    = '';
-  document.getElementById('camTitle').textContent = '// ANALYZING...';
-}
-
-async function capturePhoto() {
+// ── Capture ───────────────────────────────────────────────────────────────────
+function capturePhoto() {
   const video  = document.getElementById('camVideo');
   const canvas = document.getElementById('camCanvas');
   if (!video.videoWidth) return;
 
   document.getElementById('captureBtn').disabled = true;
 
-  // Flash effect
+  // Flash
   const flash = document.getElementById('detectFlash');
-  flash.classList.remove('flash');
-  void flash.offsetWidth;
-  flash.classList.add('flash');
+  flash.classList.remove('flash'); void flash.offsetWidth; flash.classList.add('flash');
 
-  // Capture full frame at full resolution
+  // Draw full frame
   canvas.width  = video.videoWidth;
   canvas.height = video.videoHeight;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, 0, 0);
+  fullImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-  // Copy to preview canvas
-  const preview = document.getElementById('previewCanvas');
-  preview.width  = canvas.width;
-  preview.height = canvas.height;
-  preview.getContext('2d').drawImage(canvas, 0, 0);
+  // Auto-crop: take the bracket zone (center 75% x middle 40%)
+  cropRect = {
+    x: Math.round(canvas.width  * 0.10),
+    y: Math.round(canvas.height * 0.28),
+    w: Math.round(canvas.width  * 0.80),
+    h: Math.round(canvas.height * 0.44)
+  };
 
-  // Switch to preview screen immediately
-  showPreview();
+  // Show preview immediately
+  drawPreview(canvas, cropRect);
+  showStage('preview');
   document.getElementById('previewStatusText').textContent = 'ANALYZING...';
-  document.getElementById('camDetectedText').textContent   = '';
+  document.getElementById('plateEditInput').value = '';
   document.getElementById('confirmBtn').disabled = true;
   document.getElementById('confirmBtn').textContent = 'SEARCHING...';
 
-  // Get high-quality JPEG blob
-  canvas.toBlob(async blob => {
-    capturedBlob = blob;
-    await sendToPlateRecognizer(blob);
-  }, 'image/jpeg', 0.97);
+  // Send cropped region
+  sendCroppedRegion(canvas, cropRect);
 }
 
-async function sendToPlateRecognizer(blob) {
-  try {
-    const form = new FormData();
-    form.append('upload', blob, 'plate.jpg');
-    form.append('regions', 'in'); // India model
+// ── Draw preview ──────────────────────────────────────────────────────────────
+function drawPreview(srcCanvas, rect) {
+  const pv  = document.getElementById('previewCanvas');
+  pv.width  = rect.w;
+  pv.height = rect.h;
+  pv.getContext('2d').drawImage(srcCanvas, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+}
 
-    const resp = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
-      method: 'POST',
-      headers: { 'Authorization': `Token ${_dt(_TV)}` },
-      body: form
-    });
+// ── Crop Tool ─────────────────────────────────────────────────────────────────
+let cropDrag = { active: false, sx: 0, sy: 0, ex: 0, ey: 0 };
 
-    if (resp.status === 429) {
-      document.getElementById('previewStatusText').textContent = 'MONTHLY LIMIT REACHED';
-      document.getElementById('camDetectedText').textContent   = 'Type the plate manually';
-      document.getElementById('confirmBtn').textContent = 'TYPE MANUALLY';
-      document.getElementById('confirmBtn').disabled = false;
-      document.getElementById('confirmBtn').onclick = () => closeScanner();
-      return;
-    }
+function openCropTool() {
+  const canvas  = document.getElementById('camCanvas');
+  const cc      = document.getElementById('cropCanvas');
+  // Scale to fit display
+  const maxW    = Math.min(window.innerWidth - 32, 540);
+  const scale   = maxW / canvas.width;
+  cc.width      = canvas.width;
+  cc.height     = canvas.height;
+  cc.style.maxHeight = Math.round(canvas.height * scale) + 'px';
+  const ctx     = cc.getContext('2d');
+  ctx.drawImage(canvas, 0, 0);
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  // Reset drag to last cropRect
+  const r = cropRect;
+  cropDrag = { active: false,
+    sx: r.x, sy: r.y, ex: r.x + r.w, ey: r.y + r.h };
+  drawCropOverlay(ctx, canvas.width, canvas.height);
+  showStage('crop');
 
-    const data    = await resp.json();
-    const results = data.results || [];
+  // Events
+  cc.onpointerdown = e => {
+    const p = canvasPoint(cc, e);
+    cropDrag = { active: true, sx: p.x, sy: p.y, ex: p.x, ey: p.y };
+    cc.setPointerCapture(e.pointerId);
+  };
+  cc.onpointermove = e => {
+    if (!cropDrag.active) return;
+    const p = canvasPoint(cc, e);
+    cropDrag.ex = p.x; cropDrag.ey = p.y;
+    const ctx2 = cc.getContext('2d');
+    ctx2.drawImage(canvas, 0, 0);
+    drawCropOverlay(ctx2, canvas.width, canvas.height);
+  };
+  cc.onpointerup = () => { cropDrag.active = false; };
+}
 
-    if (!results.length) {
-      document.getElementById('previewStatusText').textContent = 'NO PLATE DETECTED';
-      document.getElementById('camDetectedText').textContent   = 'Retake with better angle/lighting';
-      document.getElementById('confirmBtn').textContent = 'RETAKE';
-      document.getElementById('confirmBtn').disabled = false;
-      document.getElementById('confirmBtn').onclick = () => retake();
-      return;
-    }
+function canvasPoint(cc, e) {
+  const r  = cc.getBoundingClientRect();
+  const sx = cc.width  / r.width;
+  const sy = cc.height / r.height;
+  return {
+    x: Math.round((e.clientX - r.left) * sx),
+    y: Math.round((e.clientY - r.top)  * sy)
+  };
+}
 
-    // ── Parse response — handle all known formats ─────────────────────────
-    let bestPlate = null, bestScore = -1;
-    for (const r of results) {
-      let plateStr = null, score = 0;
+function drawCropOverlay(ctx, w, h) {
+  const x1 = Math.min(cropDrag.sx, cropDrag.ex);
+  const y1 = Math.min(cropDrag.sy, cropDrag.ey);
+  const x2 = Math.max(cropDrag.sx, cropDrag.ex);
+  const y2 = Math.max(cropDrag.sy, cropDrag.ey);
+  // Dim outside
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0,  0,  w,  y1);
+  ctx.fillRect(0,  y2, w,  h - y2);
+  ctx.fillRect(0,  y1, x1, y2 - y1);
+  ctx.fillRect(x2, y1, w - x2, y2 - y1);
+  // Border
+  ctx.strokeStyle = '#00ff88';
+  ctx.lineWidth   = 2;
+  ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+  // Corners
+  const cs = 16;
+  ctx.lineWidth = 3;
+  [[x1,y1,1,1],[x2,y1,-1,1],[x1,y2,1,-1],[x2,y2,-1,-1]].forEach(([cx,cy,dx,dy]) => {
+    ctx.beginPath(); ctx.moveTo(cx, cy + dy*cs); ctx.lineTo(cx, cy); ctx.lineTo(cx + dx*cs, cy);
+    ctx.stroke();
+  });
+}
 
-      if (typeof r.plate === 'string') {
-        plateStr = r.plate;
-        score    = r.score || 0;
-      } else if (r.plate?.props?.plate?.length) {
-        plateStr = r.plate.props.plate[0].value;
-        score    = r.plate.props.plate[0].score || 0;
-      } else if (r.candidates?.length) {
-        plateStr = r.candidates[0].plate;
-        score    = r.candidates[0].score || 0;
+function confirmCrop() {
+  const canvas = document.getElementById('camCanvas');
+  cropRect = {
+    x: Math.round(Math.min(cropDrag.sx, cropDrag.ex)),
+    y: Math.round(Math.min(cropDrag.sy, cropDrag.ey)),
+    w: Math.round(Math.abs(cropDrag.ex - cropDrag.sx)),
+    h: Math.round(Math.abs(cropDrag.ey - cropDrag.sy))
+  };
+  if (cropRect.w < 20 || cropRect.h < 10) {
+    // Too small, use full image
+    cropRect = { x: 0, y: 0, w: canvas.width, h: canvas.height };
+  }
+  drawPreview(canvas, cropRect);
+  showStage('preview');
+  document.getElementById('previewStatusText').textContent = 'ANALYZING...';
+  document.getElementById('plateEditInput').value = '';
+  document.getElementById('confirmBtn').disabled = true;
+  document.getElementById('confirmBtn').textContent = 'SEARCHING...';
+  sendCroppedRegion(canvas, cropRect);
+}
+
+function skipCrop() {
+  // Use full frame
+  const canvas = document.getElementById('camCanvas');
+  cropRect = { x: 0, y: 0, w: canvas.width, h: canvas.height };
+  drawPreview(canvas, cropRect);
+  showStage('preview');
+  document.getElementById('previewStatusText').textContent = 'ANALYZING...';
+  document.getElementById('plateEditInput').value = '';
+  document.getElementById('confirmBtn').disabled = true;
+  document.getElementById('confirmBtn').textContent = 'SEARCHING...';
+  sendCroppedRegion(canvas, cropRect);
+}
+
+// ── Send to Plate Recognizer ──────────────────────────────────────────────────
+function sendCroppedRegion(srcCanvas, rect) {
+  // Extract just the crop region into a temp canvas
+  const tmp = document.createElement('canvas');
+  tmp.width  = rect.w;
+  tmp.height = rect.h;
+  tmp.getContext('2d').drawImage(srcCanvas, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+
+  tmp.toBlob(async blob => {
+    if (!blob) return;
+    try {
+      const form = new FormData();
+      form.append('upload', blob, 'plate.jpg');
+      form.append('regions', 'in');
+      // Also send mmc (make/model/color) for extra context
+      form.append('config', JSON.stringify({ mode: 'fast' }));
+
+      const resp = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
+        method: 'POST',
+        headers: { 'Authorization': `Token ${_dt(_TV)}` },
+        body: form
+      });
+
+      if (resp.status === 429) {
+        setPreviewResult(null, 'MONTHLY LIMIT REACHED — type manually');
+        return;
+      }
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      const data    = await resp.json();
+      const results = data.results || [];
+
+      // ── Parse all known response formats ─────────────────────────────────
+      let bestPlate = null, bestScore = -1;
+      for (const r of results) {
+        // Try candidates array first (most detailed)
+        const candidates = r.candidates || [];
+        for (const cand of candidates) {
+          const s = cand.score || 0;
+          if (s > bestScore) { bestScore = s; bestPlate = cand.plate; }
+        }
+        // Then flat plate string
+        if (typeof r.plate === 'string' && (r.score||0) > bestScore) {
+          bestScore = r.score||0; bestPlate = r.plate;
+        }
+        // Then nested
+        if (r.plate?.props?.plate?.length) {
+          const pp = r.plate.props.plate[0];
+          if ((pp.score||0) > bestScore) { bestScore = pp.score||0; bestPlate = pp.value; }
+        }
       }
 
-      if (plateStr && score > bestScore) {
-        bestPlate = plateStr;
-        bestScore = score;
+      if (!bestPlate) {
+        setPreviewResult(null, 'NO PLATE FOUND — crop tighter or type manually');
+        return;
       }
+
+      // Clean + normalize — accept ANY text, just try to match RC
+      const cleaned = bestPlate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const rc = normalizeRC(cleaned) || extractFuzzyRC(cleaned);
+
+      if (rc) {
+        detectedRC = rc;
+        setPreviewResult(rc, 'PLATE DETECTED — CONFIRM OR EDIT');
+      } else {
+        // Not standard format but show it anyway for manual edit
+        setPreviewResult(null, 'READ — VERIFY & EDIT BELOW', cleaned);
+      }
+
+    } catch(e) {
+      setPreviewResult(null, 'NETWORK ERROR — check connection or type manually');
     }
+  }, 'image/jpeg', 0.95);
+}
 
-    if (!bestPlate) {
-      document.getElementById('previewStatusText').textContent = 'COULD NOT READ PLATE';
-      document.getElementById('camDetectedText').textContent   = 'Retake — plate unclear';
-      document.getElementById('confirmBtn').textContent = 'RETAKE';
-      document.getElementById('confirmBtn').disabled = false;
-      document.getElementById('confirmBtn').onclick = () => retake();
-      return;
-    }
+function setPreviewResult(rc, statusMsg, rawText) {
+  document.getElementById('previewStatusText').textContent = statusMsg;
+  const editInput = document.getElementById('plateEditInput');
 
-    // Clean and normalize
-    const cleaned = bestPlate.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const rc = normalizeRC(cleaned) || extractFuzzyRC(cleaned);
-
-    if (!rc) {
-      // Show what we got — let user decide
-      document.getElementById('previewStatusText').textContent = 'PLATE READ — CHECK BELOW';
-      document.getElementById('camDetectedText').textContent   = cleaned + ' (not standard format)';
-      document.getElementById('confirmBtn').textContent = 'RETAKE';
-      document.getElementById('confirmBtn').disabled = false;
-      document.getElementById('confirmBtn').onclick = () => retake();
-      return;
-    }
-
+  if (rc) {
+    editInput.value = rc;
     detectedRC = rc;
-    document.getElementById('camTitle').textContent           = '// PLATE DETECTED';
-    document.getElementById('previewStatusText').textContent  = 'CONFIRM PLATE NUMBER';
-    document.getElementById('camDetectedText').textContent    = rc;
-    document.getElementById('confirmBtn').textContent         = `SEARCH  ${rc}`;
-    document.getElementById('confirmBtn').disabled            = false;
-    document.getElementById('confirmBtn').onclick             = () => confirmPlate();
-
-  } catch(e) {
-    document.getElementById('previewStatusText').textContent = 'NETWORK ERROR — check connection';
-    document.getElementById('camDetectedText').textContent   = '';
+    document.getElementById('confirmBtn').textContent = `SEARCH  ${rc}`;
+    document.getElementById('confirmBtn').disabled    = false;
+    document.getElementById('confirmBtn').onclick     = () => confirmPlate();
+  } else if (rawText) {
+    // Show raw read text for user to fix
+    editInput.value = rawText;
+    document.getElementById('confirmBtn').textContent = 'SEARCH';
+    document.getElementById('confirmBtn').disabled    = false;
+    document.getElementById('confirmBtn').onclick     = () => confirmPlate();
+  } else {
+    editInput.value = '';
     document.getElementById('confirmBtn').textContent = 'RETAKE';
-    document.getElementById('confirmBtn').disabled = false;
-    document.getElementById('confirmBtn').onclick = () => retake();
+    document.getElementById('confirmBtn').disabled    = false;
+    document.getElementById('confirmBtn').onclick     = () => retake();
   }
 }
 
 function retake() {
-  capturedBlob = null;
-  detectedRC   = null;
-  showViewfinder();
+  fullImageData = null; cropRect = null; detectedRC = null;
+  document.getElementById('plateEditInput').value = '';
+  document.getElementById('captureBtn').disabled  = false;
+  showStage('view');
   document.getElementById('confirmBtn').onclick = () => confirmPlate();
 }
 
 function confirmPlate() {
-  if (!detectedRC) return;
-  inp.value = detectedRC;
+  // Always read from the editable input — user may have corrected it
+  const val = document.getElementById('plateEditInput').value.trim().toUpperCase();
+  const rc  = normalizeRC(val) || extractFuzzyRC(val) || val;
+  if (!rc) return;
+  inp.value = rc;
   closeScanner();
   doSearch();
 }
 
-// Fuzzy RC extractor — handles common OCR misreads
+// Fuzzy RC extractor — handles all common OCR misreads
 function extractFuzzyRC(text) {
   const fixed = text
-    .replace(/O(?=\d)/g,  '0')
-    .replace(/(?<=\d)0(?=[A-Z])/g, 'O')
-    .replace(/I(?=\d)/g,  '1')
-    .replace(/l/g,        '1')
-    .replace(/S(?=\d)/g,  '5')
-    .replace(/B(?=\d)/g,  '8')
-    .replace(/Z(?=\d)/g,  '2')
-    .replace(/G(?=\d)/g,  '6');
+    .replace(/O(?=\d)/g,           '0')
+    .replace(/(?<=[A-Z])0(?=\d)/g, 'O') // O between letters looks like 0
+    .replace(/I(?=\d)/g,           '1')
+    .replace(/l/g,                 '1')
+    .replace(/S(?=\d)/g,           '5')
+    .replace(/B(?=\d)/g,           '8')
+    .replace(/Z(?=\d)/g,           '2')
+    .replace(/G(?=\d)/g,           '6')
+    .replace(/D(?=\d)/g,           '0');
 
   const patterns = [
     /([A-Z]{2}\d{2}[A-Z]{1,3}\d{4})/,
@@ -1606,7 +1796,99 @@ function extractFuzzyRC(text) {
 }
 
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Camera Zoom ───────────────────────────────────────────────────────────────
+let currentZoom = 1;
+let zoomTrack   = null; // MediaStreamTrack with zoom capability
+
+async function applyZoom(val) {
+  currentZoom = parseFloat(val);
+  document.getElementById('zoomLabel').textContent = currentZoom.toFixed(1) + '×';
+
+  // Try native camera zoom first (Android Chrome, some iOS)
+  if (zoomTrack) {
+    const caps = zoomTrack.getCapabilities?.() || {};
+    if (caps.zoom) {
+      const minZ = caps.zoom.min || 1;
+      const maxZ = caps.zoom.max || 5;
+      const clamped = Math.min(maxZ, Math.max(minZ, currentZoom));
+      try {
+        await zoomTrack.applyConstraints({ advanced: [{ zoom: clamped }] });
+        return; // native zoom worked — don't do CSS zoom
+      } catch(e) {}
+    }
+  }
+
+  // Fallback: CSS scale the video element
+  const video = document.getElementById('camVideo');
+  video.style.transform = `scale(${currentZoom})`;
+  video.style.transformOrigin = 'center center';
+}
+
+// Reset zoom when scanner opens
+function resetZoom() {
+  currentZoom = 1;
+  const slider = document.getElementById('zoomSlider');
+  if (slider) slider.value = 1;
+  document.getElementById('zoomLabel').textContent = '1.0×';
+  const video = document.getElementById('camVideo');
+  video.style.transform = '';
+  zoomTrack = null;
+}
+
+// After camera starts, grab the track for native zoom
+function grabZoomTrack() {
+  if (!camStream) return;
+  zoomTrack = camStream.getVideoTracks()[0] || null;
+  // Set slider max based on camera capability
+  if (zoomTrack) {
+    const caps = zoomTrack.getCapabilities?.() || {};
+    if (caps.zoom) {
+      const slider = document.getElementById('zoomSlider');
+      slider.max  = Math.min(caps.zoom.max, 8);
+      slider.min  = caps.zoom.min || 1;
+      slider.step = 0.1;
+    }
+  }
+}
+
+// Prevent page pinch-zoom inside the camera overlay — intercept touch events
+document.addEventListener('DOMContentLoaded', () => {
+  const overlay = document.getElementById('camOverlay');
+  let lastDist  = null;
+
+  overlay.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      lastDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  overlay.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault(); // blocks browser page zoom
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      if (lastDist) {
+        const ratio  = dist / lastDist;
+        const slider = document.getElementById('zoomSlider');
+        const newVal = Math.min(
+          parseFloat(slider.max),
+          Math.max(parseFloat(slider.min), currentZoom * ratio)
+        );
+        slider.value = newVal;
+        applyZoom(newVal);
+      }
+      lastDist = dist;
+    }
+  }, { passive: false });
+
+  overlay.addEventListener('touchend', () => { lastDist = null; }, { passive: true });
+});
 function renderResult(raw, rc) {
   const dn     = raw.data_nodes || {};
   const api1vd = dn['Api 1']?.vehicle_details || {};
