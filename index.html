@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VEHIQ — Vehicle Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+<style>
+
+/* ── Themes ──────────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg:       #030508;
+  --surface:  #080d12;
+  --border:   #0f2a1e;
+  --green:    #00ff88;
+  --cyan:     #00e5ff;
+  --dim:      #1a4a32;
+  --text:     #c8e8d8;
+  --muted:    #3a6650;
+  --red:      #ff3355;
+  --yellow:   #ffcc00;
+  --card-bg:  #080d12;
+  --grid-color: rgba(0,255,136,0.03);
+  --scan:     rgba(0,0,0,0.15);
+  --input-color: #fff;
+  --hero-color:  #fff;
+}
+
+[data-theme="light"] {
+  --bg:       #f0f4f0;
+  --surface:  #ffffff;
+  --border:   #b8ddc8;
+  --green:    #007a40;
+  --cyan:     #0088aa;
+  --dim:      #88b89a;
+  --text:     #1a3328;
+  --muted:    #5a8870;
+  --red:      #cc1133;
+  --yellow:   #aa7700;
+  --card-bg:  #ffffff;
+  --grid-color: rgba(0,100,60,0.05);
+  --scan:     rgba(0,0,0,0.03);
+  --input-color: #0a1a12;
+  --hero-color:  #0a1a12;
+}
+
+/* ── Reset ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body, body * {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+#plateInput {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  user-select: text !important;
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* Mobile: lock scroll until results appear */
+@media (max-width: 600px) {
+  body {
+    height: 100dvh;
+    overflow: hidden;
+  }
+  body.has-results {
+    height: auto;
+    overflow-y: auto;
+  }
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    var(--scan) 2px,
+    var(--scan) 4px
+  );
+  pointer-events: none;
+  z-index: 999;
+}
+
+.container {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 20px 80px;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+header {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 60px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 18px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 26px;
+  letter-spacing: 6px;
+  color: var(--green);
+  text-shadow: 0 0 20px rgba(0,255,136,0.3);
+}
+
+[data-theme="light"] .logo { text-shadow: none; }
+.logo span { color: var(--cyan); }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-bar {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  margin-right: 5px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px var(--green); }
+  50%       { opacity: 0.4; box-shadow: none; }
+}
+
+/* ── Theme Toggle ────────────────────────────────────────────────────────── */
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 36px; height: 36px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  border-color: var(--green);
+  color: var(--green);
+  background: rgba(0,255,136,0.05);
+}
+
+.icon-sun  { display: none; }
+.icon-moon { display: block; }
+[data-theme="light"] .icon-sun  { display: block; }
+[data-theme="light"] .icon-moon { display: none; }
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+.hero {
+  text-align: center;
+  margin-bottom: 48px;
+  padding: 0 12px;
+}
+
+.hero-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 5px;
+  color: var(--muted);
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+
+.hero-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(48px, 12vw, 100px);
+  letter-spacing: 6px;
+  line-height: 0.92;
+  color: var(--hero-color);
+}
+
+[data-theme="dark"] .hero-title {
+  text-shadow: 0 0 40px rgba(0,255,136,0.1);
+}
+
+.hero-title span {
+  color: var(--green);
+}
+
+[data-theme="dark"] .hero-title span {
+  text-shadow: 0 0 30px rgba(0,255,136,0.5);
+}
+
+.hero-sub {
+  margin-top: 14px;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+/* ── Search Box ──────────────────────────────────────────────────────────── */
+.search-wrap {
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 48px;
+  position: relative;
+}
+
+.input-shell {
+  position: relative;
+  border: 1px solid var(--dim);
+  background: var(--surface);
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.input-shell:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 24px rgba(0,255,136,0.07), inset 0 0 16px rgba(0,255,136,0.02);
+}
+
+.input-corner {
+  position: absolute;
+  width: 10px; height: 10px;
+  border-color: var(--green);
+  border-style: solid;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.input-shell:focus-within .input-corner { opacity: 1; }
+.input-corner.tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+.input-corner.tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+.input-corner.bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+.input-corner.br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+.input-inner {
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 14px;
+}
+
+.input-icon {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: color 0.3s;
+}
+
+.input-shell:focus-within .input-icon { color: var(--green); }
+
+#plateInput {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(20px, 5vw, 34px);
+  letter-spacing: 4px;
+  color: var(--input-color);
+  text-transform: uppercase;
+  padding: 24px 0;
+  caret-color: var(--green);
+}
+
+#plateInput::placeholder { color: var(--dim); }
+
+/* ── Scan Button ─────────────────────────────────────────────────────────── */
+.scan-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, transform 0.2s;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.scan-btn:hover {
+  color: var(--green);
+  transform: scale(1.1);
+}
+
+.scan-btn svg {
+  display: block;
+}
+
+/* Pulse ring on scan button */
+.scan-btn::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 6px;
+  border: 1px solid var(--green);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.scan-btn:hover::before {
+  opacity: 0.4;
+}
+
+.scan-btn.scanning {
+  color: var(--green);
+  animation: scanPulse 1s ease infinite;
+}
+
+@keyframes scanPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ── Onboarding Arrow Tooltip ────────────────────────────────────────────── */
+#scanHint {
+  position: fixed;
+  z-index: 5000;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  transition: opacity 0.4s ease;
+}
+
+#scanHint.hidden { opacity: 0; }
+
+#scanHint .hint-arrow-svg {
+  color: var(--green);
+  animation: arrowBounce 0.7s ease infinite;
+  display: block;
+}
+
+@keyframes arrowBounce {
+  0%, 100% { transform: translateY(-3px); }
+  50%       { transform: translateY(3px); }
+}
+
+#scanHint .scan-hint-box {
+  background: var(--surface);
+  border: 1px solid var(--green);
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  padding: 10px 14px;
+  max-width: 200px;
+  text-align: center;
+  box-shadow: 0 0 20px rgba(0,255,136,0.1);
+}
+
+#scanHint .hint-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--green);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+#scanHint .hint-body {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+/* ── Camera Modal ────────────────────────────────────────────────────────── */
+.cam-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.92);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.cam-overlay.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.cam-modal {
+  width: 100%;
+  max-width: 560px;
+  border: 1px solid var(--green);
+  background: var(--surface);
+  clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px));
+  overflow: hidden;
+  transform: scale(0.95) translateY(20px);
+  transition: transform 0.3s;
+}
+
+.cam-overlay.active .cam-modal {
+  transform: scale(1) translateY(0);
+}
+
+.cam-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, rgba(0,255,136,0.05), transparent);
+}
+
+.cam-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--green);
+}
+
+.cam-close {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 28px; height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 2px;
+}
+
+.cam-close:hover { border-color: var(--red); color: var(--red); }
+
+.cam-body {
+  position: relative;
+  background: #000;
+  aspect-ratio: 16/10;
+  overflow: hidden;
+}
+
+#camVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Scanning overlay on video */
+.cam-scan-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Corner brackets */
+.cam-brackets {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bracket-frame {
+  width: 75%;
+  height: 28%;
+  position: relative;
+  border: none;
+}
+
+.bracket-frame::before,
+.bracket-frame::after,
+.bracket-frame span::before,
+.bracket-frame span::after {
+  content: '';
+  position: absolute;
+  width: 20px; height: 20px;
+  border-color: var(--green);
+  border-style: solid;
+  opacity: 0.9;
+}
+
+.bracket-frame::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
+.bracket-frame::after  { top: 0; right: 0; border-width: 2px 2px 0 0; }
+.bracket-frame span::before { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+.bracket-frame span::after  { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+/* Scanning line */
+.scan-line {
+  position: absolute;
+  left: 12.5%;
+  width: 75%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--green), var(--cyan), var(--green), transparent);
+  box-shadow: 0 0 8px var(--green);
+  top: 36%;
+  animation: scanLine 2s ease-in-out infinite;
+}
+
+@keyframes scanLine {
+  0%   { top: 36%; opacity: 1; }
+  45%  { top: 64%; opacity: 1; }
+  50%  { opacity: 0; }
+  51%  { top: 36%; opacity: 0; }
+  55%  { opacity: 1; }
+  100% { top: 64%; opacity: 1; }
+}
+
+/* Status bar on cam */
+.cam-status {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(0deg, rgba(0,0,0,0.85), transparent);
+  padding: 24px 16px 10px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cam-status-text {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--cyan);
+  letter-spacing: 2px;
+  animation: blink 1.2s ease infinite;
+}
+
+.cam-detected-text {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  color: var(--green);
+  letter-spacing: 3px;
+  text-shadow: 0 0 10px rgba(0,255,136,0.5);
+  min-height: 18px;
+}
+
+@keyframes blink { 50% { opacity: 0.4; } }
+
+.cam-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cam-tip {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.cam-tip b { color: var(--text); font-weight: 600; }
+
+.cam-manual-btn {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--muted);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.cam-manual-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+/* ── Flash effect on detection ───────────────────────────────────────────── */
+.detect-flash {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,255,136,0.2);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.detect-flash.flash {
+  animation: flashAnim 0.4s ease;
+}
+
+@keyframes flashAnim {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ── Format hint ─────────────────────────────────────────────────────────── */
+.format-hint {
+  margin-top: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 0 4px;
+}
+
+.format-hint b { color: var(--green); font-weight: normal; }
+
+/* ── Search Button ───────────────────────────────────────────────────────── */
+.search-btn {
+  width: 100%;
+  margin-top: 16px;
+  padding: 16px;
+  background: transparent;
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 5px;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+.search-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--green);
+  transform: translateX(-100%);
+  transition: transform 0.25s;
+  z-index: 0;
+}
+
+.search-btn:hover::before { transform: translateX(0); }
+.search-btn:hover { color: #000; }
+.search-btn > * { position: relative; z-index: 1; }
+.search-btn:active { transform: scale(0.99); }
+.search-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.search-btn:disabled::before { transform: translateX(-100%) !important; }
+.search-btn:disabled { color: var(--green) !important; }
+
+/* ── Loader ──────────────────────────────────────────────────────────────── */
+.loader {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 40px 20px;
+  width: 100%;
+  max-width: 720px;
+}
+
+.loader.active { display: flex; }
+
+.loader-ring {
+  width: 56px; height: 56px;
+  border: 2px solid var(--dim);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loader-step {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: var(--cyan);
+  letter-spacing: 2px;
+  text-align: center;
+  animation: blink 1s ease infinite;
+}
+
+.loader-bar {
+  width: min(280px, 80%);
+  height: 2px;
+  background: var(--dim);
+  overflow: hidden;
+}
+
+.loader-progress {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--cyan));
+  width: 0%;
+  animation: progress 3s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--green);
+}
+
+@keyframes progress {
+  0%   { width: 0%; }
+  60%  { width: 85%; }
+  100% { width: 95%; }
+}
+
+/* ── Error ───────────────────────────────────────────────────────────────── */
+.error-box {
+  display: none;
+  width: 100%;
+  max-width: 720px;
+  border: 1px solid var(--red);
+  background: rgba(255,51,85,0.05);
+  padding: 20px 24px;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  animation: fadeIn 0.4s ease;
+}
+
+.error-box.active { display: block; }
+
+.error-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 5px;
+  color: var(--red);
+  margin-bottom: 8px;
+}
+
+.error-msg {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+/* ── Results ─────────────────────────────────────────────────────────────── */
+.result-wrap {
+  display: none;
+  width: 100%;
+  max-width: 720px;
+  animation: fadeIn 0.5s ease;
+}
+
+.result-wrap.active { display: block; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.result-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.result-tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: var(--green);
+  margin-bottom: 4px;
+}
+
+.result-rc {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(22px, 6vw, 30px);
+  letter-spacing: 5px;
+  color: var(--hero-color);
+}
+
+.result-status {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--green);
+  color: var(--green);
+  letter-spacing: 2px;
+  white-space: nowrap;
+  align-self: center;
+}
+
+/* Phone card */
+.phone-card {
+  background: var(--card-bg);
+  border: 1px solid var(--green);
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+[data-theme="dark"] .phone-card {
+  background: linear-gradient(135deg, rgba(0,255,136,0.04), rgba(0,229,255,0.02));
+}
+
+.phone-card-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 5px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+.phone-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.phone-number {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(18px, 5vw, 28px);
+  color: var(--green);
+  letter-spacing: 2px;
+}
+
+[data-theme="dark"] .phone-number {
+  text-shadow: 0 0 16px rgba(0,255,136,0.3);
+}
+
+.phone-copy {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--muted);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.phone-copy:hover { border-color: var(--green); color: var(--green); }
+
+.phone-none {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: var(--yellow);
+  letter-spacing: 1px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.5;
+}
+
+/* Info grid */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.info-cell {
+  background: var(--surface);
+  padding: 14px 18px;
+  transition: background 0.2s;
+}
+
+.info-cell.full { grid-column: 1 / -1; }
+
+.info-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 3px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.info-value {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.5px;
+  word-break: break-word;
+}
+
+.info-value.nil { color: var(--muted); font-size: 13px; font-weight: 300; }
+
+/* Footer */
+footer {
+  margin-top: auto;
+  padding-top: 48px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: 3px;
+  text-align: center;
+}
+
+footer a#footerLink {
+  color: var(--green);
+  text-decoration: none;
+  transition: text-shadow 0.2s, color 0.2s;
+}
+
+[data-theme="dark"] footer a#footerLink {
+  text-shadow: 0 0 8px rgba(0,255,136,0.4);
+}
+
+footer a#footerLink:hover {
+  color: var(--cyan);
+  text-decoration: underline;
+}
+
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .container {
+    padding: 16px 14px 24px;
+    min-height: 100dvh;
+    justify-content: center;
+  }
+
+  header {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+  }
+
+  .status-bar .sys-time { display: none; }
+  .status-bar .sys-uptime { display: none; }
+
+  .hero {
+    margin-bottom: 18px;
+  }
+
+  .hero-label { font-size: 9px; letter-spacing: 3px; margin-bottom: 6px; }
+
+  .hero-title {
+    font-size: clamp(36px, 14vw, 56px);
+    letter-spacing: 4px;
+  }
+
+  .hero-sub { font-size: 10px; letter-spacing: 2px; margin-top: 8px; }
+
+  .search-wrap { margin-bottom: 0; }
+
+  .input-inner { padding: 0 14px; gap: 10px; }
+  #plateInput { padding: 16px 0; letter-spacing: 3px; }
+  .input-icon { width: 20px; height: 20px; }
+
+  .format-hint { font-size: 9px; margin-top: 8px; }
+
+  .search-btn { margin-top: 10px; padding: 12px; font-size: 16px; }
+
+  .info-grid { grid-template-columns: 1fr; }
+  .info-cell.full { grid-column: 1; }
+
+  .phone-card { padding: 16px 18px; }
+
+  .result-header { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 380px) {
+  .logo { font-size: 20px; letter-spacing: 4px; }
+  #plateInput { font-size: 18px; letter-spacing: 2px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">VEH<span>IQ</span></div>
+    <div class="header-right">
+      <div class="status-bar">
+        <span><span class="status-dot"></span>ONLINE</span>
+        <span class="sys-time" id="sysTime">--:--:--</span>
+        <span class="sys-uptime">UP <span id="uptimeDisplay">00:00:00</span></span>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div class="hero-label">// vehicle intelligence terminal</div>
+    <div class="hero-title">FIND THE<br><span>OWNER</span></div>
+    <div class="hero-sub">Enter any Indian registration number</div>
+  </div>
+
+  <div class="search-wrap" id="searchWrap">
+    <div class="input-shell" id="inputShell">
+      <div class="input-corner tl"></div>
+      <div class="input-corner tr"></div>
+      <div class="input-corner bl"></div>
+      <div class="input-corner br"></div>
+      <div class="input-inner">
+        <svg class="input-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h14l4 4v4a2 2 0 0 1-2 2h-1"/>
+          <circle cx="7.5" cy="17.5" r="2.5"/>
+          <circle cx="17.5" cy="17.5" r="2.5"/>
+        </svg>
+        <input
+          id="plateInput"
+          type="text"
+          placeholder="KL41V2354"
+          maxlength="12"
+          autocomplete="off"
+          spellcheck="false"
+          inputmode="text"
+        />
+        <!-- Scan / Camera Button (replaces clear btn) -->
+        <button class="scan-btn" id="scanBtn" onclick="openScanner()" title="Scan number plate with camera">
+          <!-- QR / scan icon -->
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <line x1="14" y1="14" x2="14" y2="14.01"/>
+            <line x1="18" y1="14" x2="21" y2="14"/>
+            <line x1="14" y1="18" x2="14" y2="21"/>
+            <line x1="18" y1="18" x2="21" y2="18"/>
+            <line x1="18" y1="21" x2="21" y2="21"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+
+
+    <div class="format-hint">
+      <span>Formats: <b>KL41V2354</b> &nbsp;|&nbsp; <b>MH12AB1234</b> &nbsp;|&nbsp; <b>DL1CAA1234</b></span>
+      <span>Or tap the scan icon to use camera</span>
+    </div>
+
+    <button class="search-btn" id="searchBtn" onclick="doSearch()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <span>IDENTIFY VEHICLE</span>
+    </button>
+  </div>
+
+  <!-- Loader -->
+  <div class="loader" id="loader">
+    <div class="loader-ring"></div>
+    <div class="loader-step" id="loaderStep">INITIALIZING SECURE SESSION</div>
+    <div class="loader-bar"><div class="loader-progress"></div></div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="errorBox">
+    <div class="error-label">// ACCESS DENIED</div>
+    <div class="error-msg" id="errorMsg">—</div>
+  </div>
+
+  <!-- Results -->
+  <div class="result-wrap" id="resultWrap">
+    <div class="result-header">
+      <div>
+        <div class="result-tag">// RECORD FOUND</div>
+        <div class="result-rc" id="resultRC">—</div>
+      </div>
+      <div class="result-status" id="resultStatus">ACTIVE</div>
+    </div>
+
+    <div class="phone-card">
+      <div class="phone-card-label">// Registered Contact Number(s)</div>
+      <div class="phone-numbers" id="phoneNumbers"></div>
+    </div>
+
+    <div class="info-grid" id="infoGrid"></div>
+  </div>
+
+  <footer>VEHIQ &nbsp;|&nbsp; VEHICLE INTELLIGENCE TERMINAL &nbsp;|&nbsp; BUILT BY <a href="https://t.me/drazeforce" target="_blank" rel="noopener" id="footerLink">@DRAZEFORCE</a></footer>
+</div>
+
+<!-- ── Camera Modal ─────────────────────────────────────────────────────────── -->
+<div class="cam-overlay" id="camOverlay">
+  <div class="cam-modal">
+    <div class="cam-header">
+      <span class="cam-title">// LIVE PLATE SCANNER</span>
+      <button class="cam-close" onclick="closeScanner()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="cam-body">
+      <video id="camVideo" autoplay playsinline muted></video>
+      <canvas id="camCanvas" style="display:none"></canvas>
+      <div class="cam-scan-overlay">
+        <div class="cam-brackets">
+          <div class="bracket-frame"><span></span></div>
+        </div>
+        <div class="scan-line"></div>
+        <div class="cam-status">
+          <span class="cam-status-text" id="camStatusText">ALIGN PLATE WITHIN BRACKETS</span>
+          <span class="cam-detected-text" id="camDetectedText"></span>
+        </div>
+        <div class="detect-flash" id="detectFlash"></div>
+      </div>
+    </div>
+    <div class="cam-footer">
+      <div class="cam-tip">
+        <b>Hold steady</b> — system will auto-detect the plate number and search instantly.
+        Works best in good lighting.
+      </div>
+      <button class="cam-manual-btn" onclick="closeScanner()">TYPE MANUALLY</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tesseract.js OCR -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
+
+<script>
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+(function() {
+  const el = document.getElementById('sysTime');
+  setInterval(() => { el.textContent = new Date().toLocaleTimeString('en-GB'); }, 1000);
+})();
+
+// ── Uptime ────────────────────────────────────────────────────────────────────
+(function() {
+  const start = Date.now();
+  const el = document.getElementById('uptimeDisplay');
+  setInterval(() => {
+    const s = Math.floor((Date.now() - start) / 1000);
+    const h = String(Math.floor(s / 3600)).padStart(2, '0');
+    const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+    const sec = String(s % 60).padStart(2, '0');
+    el.textContent = `${h}:${m}:${sec}`;
+  }, 1000);
+})();
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const html = document.documentElement;
+  html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+
+// ── Onboarding hint — JS-positioned exactly under the scan button ─────────
+(function() {
+  // Inject the hint element into body (fixed position, measured by JS)
+  const hint = document.createElement('div');
+  hint.id = 'scanHint';
+  hint.innerHTML = `
+    <svg class="hint-arrow-svg" width="22" height="28" viewBox="0 0 22 28" fill="none">
+      <path d="M11 2 L11 22 M11 2 L4 9 M11 2 L18 9"
+        stroke="currentColor" stroke-width="2.2"
+        stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="scan-hint-box">
+      <div class="hint-title">// PLATE SCAN</div>
+      <div class="hint-body">Tap here to scan a number plate live with your camera!</div>
+    </div>`;
+  document.body.appendChild(hint);
+
+  function positionHint() {
+    const btn = document.getElementById('scanBtn');
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    // Center the tooltip under the button
+    const hintW = 200;
+    let left = r.left + r.width / 2 - hintW / 2;
+    // clamp to viewport
+    left = Math.max(8, Math.min(left, window.innerWidth - hintW - 8));
+    hint.style.left = left + 'px';
+    hint.style.top  = (r.bottom + 8) + 'px';
+    hint.style.width = hintW + 'px';
+  }
+
+  positionHint();
+  window.addEventListener('resize', positionHint);
+
+  const hideHint = () => {
+    hint.classList.add('hidden');
+    window.removeEventListener('resize', positionHint);
+  };
+
+  setTimeout(hideHint, 8000);
+  document.getElementById('plateInput').addEventListener('input', hideHint, { once: true });
+  document.getElementById('scanBtn').addEventListener('click', hideHint, { once: true });
+})();
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+const inp = document.getElementById('plateInput');
+
+inp.addEventListener('input', () => {
+  inp.value = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+});
+
+inp.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+// ── RC Normalizer ─────────────────────────────────────────────────────────────
+function normalizeRC(raw) {
+  const c = raw.replace(/\s/g, '').toUpperCase();
+  const m = c.match(/^([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{3,4})$/);
+  if (!m) return null;
+  const [, state, dist, ser, num] = m;
+  return `${state}${dist}${ser}${num.length === 3 ? '0' + num : num}`;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const LOADER_STEPS = [
+  'INITIALIZING SECURE SESSION',
+  'ESTABLISHING ENCRYPTED TUNNEL',
+  'AUTHENTICATING CREDENTIALS',
+  'QUERYING VEHICLE DATABASE',
+  'AGGREGATING NODE DATA',
+  'COMPILING INTELLIGENCE REPORT',
+];
+
+let loaderInterval;
+function show(id) { document.getElementById(id).classList.add('active'); }
+function hide(id) { document.getElementById(id).classList.remove('active'); }
+
+function startLoader() {
+  show('loader');
+  let idx = 0;
+  const el = document.getElementById('loaderStep');
+  el.textContent = LOADER_STEPS[0];
+  loaderInterval = setInterval(() => {
+    idx = (idx + 1) % LOADER_STEPS.length;
+    el.textContent = LOADER_STEPS[idx];
+  }, 1000);
+}
+
+function stopLoader() { clearInterval(loaderInterval); hide('loader'); }
+
+function v(...vals) {
+  const NULL = new Set([null, undefined, '', 'N/A', 'NA', 'null', 'None', 'n/a', 'na', '0', 'undefined', '-']);
+  for (const val of vals) {
+    const s = val != null ? String(val).trim() : '';
+    if (s && !NULL.has(s)) return s;
+  }
+  return '';
+}
+
+// ── Camera / OCR Scanner ──────────────────────────────────────────────────────
+let camStream = null;
+let scanLoop  = null;
+let ocrWorker = null;
+let lastDetected = '';
+let confirmTimer = null;
+let isScanning = false;
+
+async function openScanner() {
+  const overlay = document.getElementById('camOverlay');
+  overlay.classList.add('active');
+  document.getElementById('camStatusText').textContent = 'STARTING CAMERA...';
+  document.getElementById('camDetectedText').textContent = '';
+  lastDetected = '';
+
+  // ── HTTPS / secure context check ──────────────────────────────────────────
+  const isSecure = location.protocol === 'https:'
+    || location.hostname === 'localhost'
+    || location.hostname === '127.0.0.1';
+
+  if (!isSecure) {
+    document.getElementById('camStatusText').textContent =
+      '⚠ CAMERA REQUIRES HTTPS — Open this page via https:// or use localhost, not http://IP';
+    return;
+  }
+
+  // ── Polyfill for old / partial browsers ───────────────────────────────────
+  if (navigator.mediaDevices === undefined) {
+    navigator.mediaDevices = {};
+  }
+  if (navigator.mediaDevices.getUserMedia === undefined) {
+    const legacy = navigator.getUserMedia
+      || navigator.webkitGetUserMedia
+      || navigator.mozGetUserMedia
+      || navigator.msGetUserMedia;
+    if (!legacy) {
+      document.getElementById('camStatusText').textContent =
+        '⚠ CAMERA NOT SUPPORTED — Your browser does not support camera access. Try Chrome or Safari.';
+      return;
+    }
+    navigator.mediaDevices.getUserMedia = (constraints) =>
+      new Promise((resolve, reject) => legacy.call(navigator, constraints, resolve, reject));
+  }
+
+  try {
+    // Try rear camera first, fall back gracefully
+    const constraints = [
+      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { video: { facingMode: 'environment' } },
+      { video: { facingMode: 'user' } },
+      { video: true }
+    ];
+
+    let lastErr = null;
+    for (const c of constraints) {
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia(c);
+        break;
+      } catch(e) { lastErr = e; camStream = null; }
+    }
+
+    if (!camStream) throw lastErr;
+
+    const video = document.getElementById('camVideo');
+    video.srcObject = camStream;
+    video.play().catch(() => {});
+
+    // Wait for video to have dimensions before scanning
+    await new Promise(resolve => {
+      if (video.readyState >= 2) return resolve();
+      video.addEventListener('loadedmetadata', resolve, { once: true });
+      setTimeout(resolve, 3000);
+    });
+
+    document.getElementById('camStatusText').textContent = 'ALIGN PLATE WITHIN BRACKETS';
+
+    // Init Tesseract worker
+    ocrWorker = await Tesseract.createWorker('eng', 1, { logger: () => {} });
+    await ocrWorker.setParameters({
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+      tessedit_pageseg_mode: '7',
+    });
+
+    isScanning = true;
+    startScanLoop();
+
+  } catch (err) {
+    let msg = '';
+    if (!err) {
+      msg = '⚠ UNKNOWN CAMERA ERROR — Try reloading the page.';
+    } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      msg = '⚠ CAMERA BLOCKED — In your browser, tap the camera icon in the address bar and allow access, then retry.';
+    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+      msg = '⚠ NO CAMERA FOUND on this device.';
+    } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+      msg = '⚠ CAMERA IN USE — Another app is using your camera. Close it and retry.';
+    } else if (err.name === 'OverconstrainedError') {
+      msg = '⚠ CAMERA CONSTRAINT ERROR — Retrying with basic settings...';
+    } else {
+      msg = `⚠ CAMERA ERROR: ${err.message || err.name}`;
+    }
+    document.getElementById('camStatusText').textContent = msg;
+    console.error('Camera error:', err?.name, err?.message);
+  }
+}
+
+function closeScanner() {
+  isScanning = false;
+  clearTimeout(confirmTimer);
+  if (scanLoop) { clearTimeout(scanLoop); scanLoop = null; }
+  if (ocrWorker) { ocrWorker.terminate(); ocrWorker = null; }
+  if (camStream) {
+    camStream.getTracks().forEach(t => t.stop());
+    camStream = null;
+  }
+  const video = document.getElementById('camVideo');
+  video.srcObject = null;
+  document.getElementById('camOverlay').classList.remove('active');
+}
+
+function startScanLoop() {
+  if (!isScanning) return;
+  scanLoop = setTimeout(async () => {
+    if (!isScanning || !ocrWorker) return;
+    await captureAndOCR();
+    startScanLoop();
+  }, 800); // scan every 800ms
+}
+
+async function captureAndOCR() {
+  const video  = document.getElementById('camVideo');
+  const canvas = document.getElementById('camCanvas');
+  if (!video.videoWidth) return;
+
+  // Crop center region (where the plate brackets are — roughly middle 75% x 28%)
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  const cropX = vw * 0.125;
+  const cropW = vw * 0.75;
+  const cropY = vh * 0.36;
+  const cropH = vh * 0.28;
+
+  canvas.width  = cropW;
+  canvas.height = cropH;
+  const ctx = canvas.getContext('2d');
+
+  // Draw cropped + preprocessed for OCR
+  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+  // Contrast boost
+  const imageData = ctx.getImageData(0, 0, cropW, cropH);
+  boost(imageData);
+  ctx.putImageData(imageData, 0, 0);
+
+  try {
+    const { data: { text } } = await ocrWorker.recognize(canvas);
+    const cleaned = text.replace(/[^A-Z0-9]/g, '').trim().toUpperCase();
+    const rc = extractRC(cleaned);
+
+    if (rc) {
+      document.getElementById('camDetectedText').textContent = rc;
+
+      if (rc === lastDetected) {
+        // Same plate detected twice in a row → confirm
+        clearTimeout(confirmTimer);
+        confirmTimer = setTimeout(() => {
+          onPlateDetected(rc);
+        }, 200);
+      } else {
+        document.getElementById('camStatusText').textContent = 'PLATE DETECTED — CONFIRMING...';
+      }
+      lastDetected = rc;
+    } else {
+      document.getElementById('camStatusText').textContent = 'SCANNING... ALIGN PLATE';
+      document.getElementById('camDetectedText').textContent = '';
+      lastDetected = '';
+    }
+  } catch (e) {
+    // silently ignore OCR errors mid-scan
+  }
+}
+
+// Simple contrast boost on imageData
+function boost(imageData) {
+  const d = imageData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i]   = Math.min(255, d[i]   * 1.4);
+    d[i+1] = Math.min(255, d[i+1] * 1.4);
+    d[i+2] = Math.min(255, d[i+2] * 1.4);
+  }
+}
+
+// Extract valid Indian RC from raw OCR string
+function extractRC(text) {
+  // Try to find a pattern like KL41V2354 or MH12AB1234
+  const match = text.match(/([A-Z]{2}\d{2}[A-Z]{1,3}\d{3,4})/);
+  if (!match) return null;
+  return normalizeRC(match[1]);
+}
+
+function onPlateDetected(rc) {
+  // Flash effect
+  const flash = document.getElementById('detectFlash');
+  flash.classList.remove('flash');
+  void flash.offsetWidth; // reflow
+  flash.classList.add('flash');
+
+  document.getElementById('camStatusText').textContent = '✓ PLATE CAPTURED — SEARCHING...';
+  document.getElementById('camDetectedText').textContent = rc;
+
+  // Fill input
+  inp.value = rc;
+
+  // Close scanner after short delay then search
+  setTimeout(() => {
+    closeScanner();
+    doSearch();
+  }, 600);
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderResult(raw, rc) {
+  const dn     = raw.data_nodes || {};
+  const api1vd = dn['Api 1']?.vehicle_details || {};
+  const api2   = dn['Api 2'] || {};
+  const api3l  = dn['Api 3']?.data?.data || [];
+  const api3   = Array.isArray(api3l) && api3l.length ? api3l[0] : {};
+  const api4vd = dn['Api 4']?.vehicle_info?.data || {};
+  const extr   = raw.extracted_owner_details || {};
+
+  document.getElementById('resultRC').textContent =
+    v(api1vd.registration_no, api3.reg_no, api4vd.reg_no, rc);
+
+  const status = v(api3.status, api4vd.status) || 'UNKNOWN';
+  const statusEl = document.getElementById('resultStatus');
+  statusEl.textContent = status.toUpperCase();
+  const isActive = status.toLowerCase().includes('active');
+  statusEl.style.borderColor = isActive ? 'var(--green)' : 'var(--yellow)';
+  statusEl.style.color       = isActive ? 'var(--green)' : 'var(--yellow)';
+
+  const phones = new Set();
+  [api1vd.mobile, api2['Phone'], api3.mobile_no].forEach(p => { if (v(p)) phones.add(v(p)); });
+  (extr.phone_nodes || []).forEach(p => { if (v(p)) phones.add(v(p)); });
+
+  const phoneEl = document.getElementById('phoneNumbers');
+  phoneEl.innerHTML = '';
+
+  if (phones.size === 0) {
+    phoneEl.innerHTML = `
+      <div class="phone-none">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        No mobile registered. Contact your local RTO for owner details.
+      </div>`;
+  } else {
+    phones.forEach(ph => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;';
+      wrap.innerHTML = `
+        <span class="phone-number">${ph}</span>
+        <button class="phone-copy" onclick="copyText('${ph}',this)">COPY</button>`;
+      phoneEl.appendChild(wrap);
+    });
+  }
+
+  const cells = [
+    ['OWNER NAME',        v(api1vd.owner_name,  api2['Owner Name'],     api3.owner_name,     api4vd.owner_name)],
+    ['FATHER / GUARDIAN', v(api1vd.father_name, api2["Father's Name"],  api3.father_name,    api4vd.father_name)],
+    ['MAKE / MODEL',      v(api1vd.maker_model, api2['Maker Model'],    api3.maker_modal,    api4vd.maker_modal)],
+    ['FUEL TYPE',         v(api1vd.fuel_type,   api2['Fuel Type'],      api3.fuel_type,      api4vd.fuel_type)],
+    ['COLOR',             v(api3.vehicle_color, api4vd.vehicle_color)],
+    ['VEHICLE CLASS',     v(api2['Vehicle Class'], api3.vh_class,       api4vd.vh_class)],
+    ['ENGINE NO.',        v(api1vd.engine_no,   api3.engine_no,         api4vd.model_engine)],
+    ['CHASSIS NO.',       v(api1vd.chassis_no,  api3.chasi_no,          api4vd.chasi_no)],
+    ['REG. DATE',         v(api1vd.registration_date, api2['Registration Date'], api3.regn_dt, api4vd.regn_dt)],
+    ['RTO',               v(api1vd.rto, api2['Registered RTO'], api3.rto, api4vd.rto)],
+    ['FITNESS UPTO',      v(api1vd.fitness_upto, api2['Fitness Upto'],  api3.fitness_upto,   api4vd.fitness_upto)],
+    ['INSURANCE CO.',     v(api1vd.insurance?.company, api2['Insurance Company'], api3.insurance_comp, api4vd.insurance_company)],
+    ['INSURANCE UPTO',    v(api1vd.insurance?.expiry, api2['Insurance Expiry'], api3.insUpto, api4vd.insurance_upto)],
+    ['FINANCER',          v(api1vd.financer, api2['Financier Name'],    api3.financer_details, api4vd.financer_name)],
+    ['ADDRESS',           v(api2['Address'], api3.address), true],
+  ];
+
+  const grid = document.getElementById('infoGrid');
+  grid.innerHTML = '';
+  cells.forEach(([label, val, full]) => {
+    const cell = document.createElement('div');
+    cell.className = 'info-cell' + (full ? ' full' : '');
+    cell.innerHTML = `
+      <div class="info-label">${label}</div>
+      <div class="info-value ${val ? '' : 'nil'}">${val || '— not available'}</div>`;
+    grid.appendChild(cell);
+  });
+
+  show('resultWrap');
+  document.body.classList.add('has-results');
+  document.getElementById('resultWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Copy ──────────────────────────────────────────────────────────────────────
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'COPIED';
+    btn.style.borderColor = 'var(--green)';
+    btn.style.color = 'var(--green)';
+    setTimeout(() => { btn.textContent = orig; btn.style.borderColor = ''; btn.style.color = ''; }, 1500);
+  });
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+async function doSearch() {
+  const raw = inp.value.trim();
+  if (!raw) { inp.focus(); return; }
+
+  const rc = normalizeRC(raw);
+  if (!rc) {
+    hide('resultWrap'); hide('errorBox');
+    document.getElementById('errorMsg').textContent =
+      `"${raw}" is not a valid RC number. Expected format: KL41V2354 or MH12AB1234`;
+    show('errorBox');
+    return;
+  }
+
+  hide('resultWrap'); hide('errorBox');
+  document.body.classList.remove('has-results');
+  document.getElementById('searchBtn').disabled = true;
+  startLoader();
+
+  try {
+    const res = await fetch(`/api/vehicle?rc=${rc}`);
+    if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
+    const data = await res.json();
+
+    stopLoader();
+    document.getElementById('searchBtn').disabled = false;
+
+    if (data.error) {
+      document.getElementById('errorMsg').textContent = data.error;
+      show('errorBox');
+      return;
+    }
+
+    const ok = ['success', 'Success', true, 'true'];
+    if (!ok.includes(data.status)) {
+      document.getElementById('errorMsg').textContent =
+        `API returned status: "${data.status || 'unknown'}". Vehicle may not be in the database.`;
+      show('errorBox');
+      return;
+    }
+
+    renderResult(data, rc);
+
+  } catch (err) {
+    stopLoader();
+    document.getElementById('searchBtn').disabled = false;
+    document.getElementById('errorMsg').textContent =
+      err.message || 'Network error. Could not reach the vehicle database.';
+    show('errorBox');
+  }
+}
+
+// Close scanner on overlay click (outside modal)
+document.getElementById('camOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeScanner();
+});
+
+// ESC to close
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeScanner();
+});
+</script>
+</body>
+</html>
