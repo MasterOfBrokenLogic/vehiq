@@ -4,10 +4,6 @@ VEHIQ — Vehicle lookup proxy server
 Run: python server.py
 Then open: https://YOUR_PC_IP:5000  (note: https not http)
 
-On mobile, your browser will warn "Not Secure / Certificate Error" —
-just tap Advanced → Proceed anyway. This is normal for self-signed certs.
-
-Place server.py and index.html in the SAME folder.
 """
 
 from flask import Flask, jsonify, request, send_file  # type: ignore
@@ -16,10 +12,13 @@ import os, socket, tempfile, subprocess
 
 app = Flask(__name__)
 
-VEHICLE_API_BASE = "https://car-mix-fee-demo.vercel.app"
-VEHICLE_API_KEY  = "DEMO"
+_K = [110,135,149,142,52,192,80,195,80,96,177,51,172,149,118,200]
+_B = [6,243,225,254,71,250,127,236,51,1,195,30,193,252,14,229,8,226,240,163,80,165,61,172,126,22,212,65,207,240,26,230,15,247,229]
+_A = [42,194,216,193]
+_d = lambda v: ''.join(chr(c ^ _K[i % len(_K)]) for i, c in enumerate(v))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 @app.route("/")
 def index():
@@ -31,8 +30,8 @@ def vehicle():
     if not rc:
         return jsonify({"error": "rc parameter is required"}), 400
 
-    url = f"{VEHICLE_API_BASE}/?rc={rc}&key={VEHICLE_API_KEY}"
-    print(f"[VEHIQ] Fetching: {url}")
+    url = f"{_d(_B)}/?rc={rc}&key={_d(_A)}"
+    print(f"[VEHIQ] Fetching RC: {rc}")
     try:
         resp = requests.get(url, timeout=30)
         resp.raise_for_status()
@@ -92,7 +91,7 @@ if __name__ == "__main__":
   ║  Local :  http://localhost:5000                  ║
   ║  Mobile:  http://{local_ip}:5000
   ╠══════════════════════════════════════════════════╣
-  ║  ⚠ HTTP mode — camera scan won't work on mobile  ║
+  ║  HTTP mode — camera scan won't work on mobile    ║
   ║  Install openssl to enable HTTPS automatically.  ║
   ╚══════════════════════════════════════════════════╝
         """)
