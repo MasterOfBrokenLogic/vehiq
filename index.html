@@ -531,27 +531,6 @@ header {
 .bracket-frame span::before { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
 .bracket-frame span::after  { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
 
-/* Scanning line */
-.scan-line {
-  position: absolute;
-  left: 12.5%;
-  width: 75%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--green), var(--cyan), var(--green), transparent);
-  box-shadow: 0 0 8px var(--green);
-  top: 36%;
-  animation: scanLine 2s ease-in-out infinite;
-}
-
-@keyframes scanLine {
-  0%   { top: 36%; opacity: 1; }
-  45%  { top: 64%; opacity: 1; }
-  50%  { opacity: 0; }
-  51%  { top: 36%; opacity: 0; }
-  55%  { opacity: 1; }
-  100% { top: 64%; opacity: 1; }
-}
-
 /* Status bar on cam */
 .cam-status {
   position: absolute;
@@ -618,6 +597,33 @@ header {
 }
 
 .cam-manual-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+/* Capture button */
+.capture-btn {
+  background: var(--green);
+  border: none;
+  color: #000;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 4px;
+  padding: 10px 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  transition: opacity 0.2s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.capture-btn:hover  { opacity: 0.88; }
+.capture-btn:active { transform: scale(0.97); }
+.capture-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--dim);
+  color: var(--muted);
+}
 
 /* ── Flash effect on detection ───────────────────────────────────────────── */
 .detect-flash {
@@ -1132,35 +1138,65 @@ footer a#footerLink:hover {
 <div class="cam-overlay" id="camOverlay">
   <div class="cam-modal">
     <div class="cam-header">
-      <span class="cam-title">// LIVE PLATE SCANNER</span>
+      <span class="cam-title" id="camTitle">// PLATE SCANNER</span>
       <button class="cam-close" onclick="closeScanner()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
     </div>
-    <div class="cam-body">
+
+    <!-- VIEWFINDER (shown while camera is live) -->
+    <div class="cam-body" id="camViewfinder">
       <video id="camVideo" autoplay playsinline muted></video>
       <canvas id="camCanvas" style="display:none"></canvas>
       <div class="cam-scan-overlay">
         <div class="cam-brackets">
           <div class="bracket-frame"><span></span></div>
         </div>
-        <div class="scan-line"></div>
         <div class="cam-status">
-          <span class="cam-status-text" id="camStatusText">ALIGN PLATE WITHIN BRACKETS</span>
-          <span class="cam-detected-text" id="camDetectedText"></span>
+          <span class="cam-status-text" id="camStatusText">ALIGN PLATE · THEN CAPTURE</span>
         </div>
         <div class="detect-flash" id="detectFlash"></div>
       </div>
     </div>
-    <div class="cam-footer">
-      <div class="cam-tip">
-        <b>Hold steady</b> — system will auto-detect the plate number and search instantly.
-        Works best in good lighting.
+
+    <!-- PREVIEW (shown after capture, before confirm) -->
+    <div class="cam-body" id="camPreview" style="display:none">
+      <canvas id="previewCanvas" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
+      <div class="cam-scan-overlay">
+        <div class="cam-status" style="background:linear-gradient(0deg,rgba(0,0,0,0.9),transparent)">
+          <div style="width:100%">
+            <div class="cam-status-text" id="previewStatusText">ANALYZING...</div>
+            <div class="cam-detected-text" id="camDetectedText" style="font-size:clamp(16px,5vw,26px);margin-top:4px;"></div>
+          </div>
+        </div>
       </div>
-      <button class="cam-manual-btn" onclick="closeScanner()">TYPE MANUALLY</button>
     </div>
+
+    <!-- Footer: viewfinder state -->
+    <div class="cam-footer" id="footerViewfinder">
+      <div class="cam-tip">
+        <b>Aim</b> the plate inside the brackets, then tap <b>CAPTURE</b>.
+        Good lighting = perfect result.
+      </div>
+      <button class="capture-btn" id="captureBtn" onclick="capturePhoto()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="4" fill="currentColor"/>
+          <path d="M20 7h-2.5L16 5H8L6.5 7H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1z"/>
+        </svg>
+        CAPTURE
+      </button>
+    </div>
+
+    <!-- Footer: preview/confirm state -->
+    <div class="cam-footer" id="footerPreview" style="display:none">
+      <button class="cam-manual-btn" id="retakeBtn" onclick="retake()">RETAKE</button>
+      <button class="capture-btn" id="confirmBtn" onclick="confirmPlate()" disabled>
+        SEARCHING...
+      </button>
+    </div>
+
   </div>
 </div>
 
@@ -1292,38 +1328,35 @@ function v(...vals) {
   return '';
 }
 
-// ── Camera / Plate Recognizer Scanner ────────────────────────────────────────
-// Obfuscated token (XOR)
+// ── Camera / Plate Recognizer — Capture Mode ─────────────────────────────────
 const _TK = [110,135,149,142,52,192,80,195,80,96,177,51,172,149,118,200];
 const _TV = [15,182,161,190,13,161,53,160,102,80,210,86,159,167,68,249,91,178,173,183,86,244,54,250,98,80,211,10,200,165,20,248,91,191,173,239,1,165,103,167];
-const _dt = v => ''.concat(...v.map((c,i)=>String.fromCharCode(c^_TK[i%_TK.length])));
+const _dt = v => ''.concat(...v.map((c,i) => String.fromCharCode(c ^ _TK[i % _TK.length])));
 
-let camStream   = null;
-let scanLoop    = null;
-let lastDetected = '';
-let confirmTimer = null;
-let isScanning  = false;
-let lastScanTime = 0;
+let camStream    = null;
+let capturedBlob = null;
+let detectedRC   = null;
 
 async function openScanner() {
-  const overlay = document.getElementById('camOverlay');
-  overlay.classList.add('active');
-  document.getElementById('camStatusText').textContent = 'STARTING CAMERA...';
-  document.getElementById('camDetectedText').textContent = '';
-  lastDetected = '';
+  // Reset state
+  capturedBlob = null;
+  detectedRC   = null;
+  showViewfinder();
 
-  // ── Secure context check ──────────────────────────────────────────────────
+  document.getElementById('camOverlay').classList.add('active');
+  document.getElementById('camStatusText').textContent = 'STARTING CAMERA...';
+
+  // Secure context check
   const isSecure = location.protocol === 'https:'
     || location.hostname === 'localhost'
     || location.hostname === '127.0.0.1';
-
   if (!isSecure) {
     document.getElementById('camStatusText').textContent =
-      'CAMERA REQUIRES HTTPS — use https:// or localhost';
+      'REQUIRES HTTPS — use https:// or localhost';
     return;
   }
 
-  // ── Polyfill ──────────────────────────────────────────────────────────────
+  // Polyfill
   if (!navigator.mediaDevices) navigator.mediaDevices = {};
   if (!navigator.mediaDevices.getUserMedia) {
     const leg = navigator.getUserMedia || navigator.webkitGetUserMedia
@@ -1337,178 +1370,228 @@ async function openScanner() {
       new Promise((res, rej) => leg.call(navigator, c, res, rej));
   }
 
-  try {
-    const tries = [
-      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-      { video: { facingMode: 'environment' } },
-      { video: { facingMode: 'user' } },
-      { video: true }
-    ];
-    let lastErr = null;
-    for (const c of tries) {
-      try { camStream = await navigator.mediaDevices.getUserMedia(c); break; }
-      catch(e) { lastErr = e; camStream = null; }
-    }
-    if (!camStream) throw lastErr;
-
-    const video = document.getElementById('camVideo');
-    video.srcObject = camStream;
-    video.play().catch(() => {});
-
-    await new Promise(resolve => {
-      if (video.readyState >= 2) return resolve();
-      video.addEventListener('loadedmetadata', resolve, { once: true });
-      setTimeout(resolve, 3000);
-    });
-
-    document.getElementById('camStatusText').textContent = 'ALIGN PLATE WITHIN BRACKETS';
-    isScanning = true;
-    startScanLoop();
-
-  } catch(err) {
-    const msg =
-      err.name === 'NotAllowedError'    ? 'CAMERA BLOCKED — allow camera in browser settings' :
-      err.name === 'NotFoundError'      ? 'NO CAMERA FOUND on this device' :
-      err.name === 'NotReadableError'   ? 'CAMERA IN USE — close other apps and retry' :
-      `CAMERA ERROR: ${err.message || err.name}`;
-    document.getElementById('camStatusText').textContent = msg;
+  // Try rear cam, fall back gracefully
+  const tries = [
+    { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+    { video: { facingMode: 'environment' } },
+    { video: { facingMode: 'user' } },
+    { video: true }
+  ];
+  let lastErr = null;
+  for (const c of tries) {
+    try { camStream = await navigator.mediaDevices.getUserMedia(c); break; }
+    catch(e) { lastErr = e; camStream = null; }
   }
+  if (!camStream) {
+    const msg =
+      lastErr?.name === 'NotAllowedError'  ? 'CAMERA BLOCKED — allow in browser settings' :
+      lastErr?.name === 'NotFoundError'    ? 'NO CAMERA FOUND' :
+      lastErr?.name === 'NotReadableError' ? 'CAMERA IN USE — close other apps' :
+      `CAMERA ERROR: ${lastErr?.message || lastErr?.name}`;
+    document.getElementById('camStatusText').textContent = msg;
+    return;
+  }
+
+  const video = document.getElementById('camVideo');
+  video.srcObject = camStream;
+  video.play().catch(() => {});
+  await new Promise(resolve => {
+    if (video.readyState >= 2) return resolve();
+    video.addEventListener('loadedmetadata', resolve, { once: true });
+    setTimeout(resolve, 3000);
+  });
+
+  document.getElementById('camStatusText').textContent = 'ALIGN PLATE · THEN CAPTURE';
+  document.getElementById('captureBtn').disabled = false;
 }
 
 function closeScanner() {
-  isScanning = false;
-  clearTimeout(scanLoop);
-  clearTimeout(confirmTimer);
-  scanLoop = null;
   if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
-  const video = document.getElementById('camVideo');
-  video.srcObject = null;
+  document.getElementById('camVideo').srcObject = null;
   document.getElementById('camOverlay').classList.remove('active');
+  capturedBlob = null;
+  detectedRC   = null;
 }
 
-function startScanLoop() {
-  if (!isScanning) return;
-  scanLoop = setTimeout(async () => {
-    if (!isScanning) return;
-    await captureAndSend();
-    startScanLoop();
-  }, 1200); // 1.2s between frames — fits within free tier limits
+function showViewfinder() {
+  document.getElementById('camViewfinder').style.display = '';
+  document.getElementById('camPreview').style.display    = 'none';
+  document.getElementById('footerViewfinder').style.display = '';
+  document.getElementById('footerPreview').style.display    = 'none';
+  document.getElementById('camTitle').textContent = '// PLATE SCANNER';
+  document.getElementById('captureBtn').disabled  = false;
+  document.getElementById('captureBtn').textContent = 'CAPTURE';
 }
 
-async function captureAndSend() {
+function showPreview() {
+  document.getElementById('camViewfinder').style.display = 'none';
+  document.getElementById('camPreview').style.display    = '';
+  document.getElementById('footerViewfinder').style.display = 'none';
+  document.getElementById('footerPreview').style.display    = '';
+  document.getElementById('camTitle').textContent = '// ANALYZING...';
+}
+
+async function capturePhoto() {
   const video  = document.getElementById('camVideo');
   const canvas = document.getElementById('camCanvas');
   if (!video.videoWidth) return;
 
-  // Crop the bracket zone
-  const vw = video.videoWidth, vh = video.videoHeight;
-  canvas.width  = Math.round(vw * 0.75);
-  canvas.height = Math.round(vh * 0.40);
+  document.getElementById('captureBtn').disabled = true;
+
+  // Flash effect
+  const flash = document.getElementById('detectFlash');
+  flash.classList.remove('flash');
+  void flash.offsetWidth;
+  flash.classList.add('flash');
+
+  // Capture full frame at full resolution
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(video,
-    vw * 0.125, vh * 0.30,   // source crop start
-    vw * 0.75,  vh * 0.40,   // source crop size
-    0, 0, canvas.width, canvas.height
-  );
+  ctx.drawImage(video, 0, 0);
 
-  // Convert to blob and send to Plate Recognizer
+  // Copy to preview canvas
+  const preview = document.getElementById('previewCanvas');
+  preview.width  = canvas.width;
+  preview.height = canvas.height;
+  preview.getContext('2d').drawImage(canvas, 0, 0);
+
+  // Switch to preview screen immediately
+  showPreview();
+  document.getElementById('previewStatusText').textContent = 'ANALYZING...';
+  document.getElementById('camDetectedText').textContent   = '';
+  document.getElementById('confirmBtn').disabled = true;
+  document.getElementById('confirmBtn').textContent = 'SEARCHING...';
+
+  // Get high-quality JPEG blob
   canvas.toBlob(async blob => {
-    if (!blob) return;
-    try {
-      document.getElementById('camStatusText').textContent = 'ANALYZING...';
-      const form = new FormData();
-      form.append('upload', blob, 'plate.jpg');
-      form.append('regions', 'in'); // India — improves accuracy massively
-
-      const resp = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
-        method: 'POST',
-        headers: { 'Authorization': `Token ${_dt(_TV)}` },
-        body: form
-      });
-
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        if (resp.status === 429) {
-          document.getElementById('camStatusText').textContent = 'API LIMIT REACHED — type manually';
-          isScanning = false;
-          return;
-        }
-        document.getElementById('camStatusText').textContent = 'SCANNING... ALIGN PLATE';
-        return;
-      }
-
-      const data = await resp.json();
-      const results = data.results || [];
-
-      if (results.length > 0) {
-        // Handle both response formats:
-        // Format A (newer): results[i].plate.props.plate[0].value
-        // Format B (older): results[i].plate (string) + results[i].score
-        let bestPlate = null;
-        let bestScore = -1;
-
-        for (const r of results) {
-          let plateStr = null;
-          let score = 0;
-
-          if (typeof r.plate === 'string') {
-            // Format B
-            plateStr = r.plate;
-            score = r.score || 0;
-          } else if (r.plate?.props?.plate?.length) {
-            // Format A
-            plateStr = r.plate.props.plate[0].value;
-            score = r.plate.props.plate[0].score || 0;
-          } else if (r.candidates?.length) {
-            // Fallback: candidates array
-            plateStr = r.candidates[0].plate;
-            score = r.candidates[0].score || 0;
-          }
-
-          if (plateStr && score > bestScore) {
-            bestPlate = plateStr;
-            bestScore = score;
-          }
-        }
-
-        const plate = bestPlate?.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        const rc = plate ? normalizeRC(plate) || extractFuzzyRC(plate) : null;
-
-        if (rc) {
-          document.getElementById('camDetectedText').textContent = rc;
-          if (rc === lastDetected) {
-            clearTimeout(confirmTimer);
-            confirmTimer = setTimeout(() => onPlateDetected(rc), 300);
-          } else {
-            document.getElementById('camStatusText').textContent =
-              `DETECTED: ${rc} — CONFIRMING...`;
-          }
-          lastDetected = rc;
-        } else {
-          document.getElementById('camStatusText').textContent = 'SCANNING... ALIGN PLATE';
-          document.getElementById('camDetectedText').textContent = '';
-          lastDetected = '';
-        }
-      } else {
-        document.getElementById('camStatusText').textContent = 'SCANNING... ALIGN PLATE';
-        document.getElementById('camDetectedText').textContent = '';
-        lastDetected = '';
-      }
-    } catch(e) {
-      document.getElementById('camStatusText').textContent = 'SCANNING... ALIGN PLATE';
-    }
-  }, 'image/jpeg', 0.92);
+    capturedBlob = blob;
+    await sendToPlateRecognizer(blob);
+  }, 'image/jpeg', 0.97);
 }
 
-// Fuzzy RC extractor — handles partial OCR results
+async function sendToPlateRecognizer(blob) {
+  try {
+    const form = new FormData();
+    form.append('upload', blob, 'plate.jpg');
+    form.append('regions', 'in'); // India model
+
+    const resp = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
+      method: 'POST',
+      headers: { 'Authorization': `Token ${_dt(_TV)}` },
+      body: form
+    });
+
+    if (resp.status === 429) {
+      document.getElementById('previewStatusText').textContent = 'MONTHLY LIMIT REACHED';
+      document.getElementById('camDetectedText').textContent   = 'Type the plate manually';
+      document.getElementById('confirmBtn').textContent = 'TYPE MANUALLY';
+      document.getElementById('confirmBtn').disabled = false;
+      document.getElementById('confirmBtn').onclick = () => closeScanner();
+      return;
+    }
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const data    = await resp.json();
+    const results = data.results || [];
+
+    if (!results.length) {
+      document.getElementById('previewStatusText').textContent = 'NO PLATE DETECTED';
+      document.getElementById('camDetectedText').textContent   = 'Retake with better angle/lighting';
+      document.getElementById('confirmBtn').textContent = 'RETAKE';
+      document.getElementById('confirmBtn').disabled = false;
+      document.getElementById('confirmBtn').onclick = () => retake();
+      return;
+    }
+
+    // ── Parse response — handle all known formats ─────────────────────────
+    let bestPlate = null, bestScore = -1;
+    for (const r of results) {
+      let plateStr = null, score = 0;
+
+      if (typeof r.plate === 'string') {
+        plateStr = r.plate;
+        score    = r.score || 0;
+      } else if (r.plate?.props?.plate?.length) {
+        plateStr = r.plate.props.plate[0].value;
+        score    = r.plate.props.plate[0].score || 0;
+      } else if (r.candidates?.length) {
+        plateStr = r.candidates[0].plate;
+        score    = r.candidates[0].score || 0;
+      }
+
+      if (plateStr && score > bestScore) {
+        bestPlate = plateStr;
+        bestScore = score;
+      }
+    }
+
+    if (!bestPlate) {
+      document.getElementById('previewStatusText').textContent = 'COULD NOT READ PLATE';
+      document.getElementById('camDetectedText').textContent   = 'Retake — plate unclear';
+      document.getElementById('confirmBtn').textContent = 'RETAKE';
+      document.getElementById('confirmBtn').disabled = false;
+      document.getElementById('confirmBtn').onclick = () => retake();
+      return;
+    }
+
+    // Clean and normalize
+    const cleaned = bestPlate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const rc = normalizeRC(cleaned) || extractFuzzyRC(cleaned);
+
+    if (!rc) {
+      // Show what we got — let user decide
+      document.getElementById('previewStatusText').textContent = 'PLATE READ — CHECK BELOW';
+      document.getElementById('camDetectedText').textContent   = cleaned + ' (not standard format)';
+      document.getElementById('confirmBtn').textContent = 'RETAKE';
+      document.getElementById('confirmBtn').disabled = false;
+      document.getElementById('confirmBtn').onclick = () => retake();
+      return;
+    }
+
+    detectedRC = rc;
+    document.getElementById('camTitle').textContent           = '// PLATE DETECTED';
+    document.getElementById('previewStatusText').textContent  = 'CONFIRM PLATE NUMBER';
+    document.getElementById('camDetectedText').textContent    = rc;
+    document.getElementById('confirmBtn').textContent         = `SEARCH  ${rc}`;
+    document.getElementById('confirmBtn').disabled            = false;
+    document.getElementById('confirmBtn').onclick             = () => confirmPlate();
+
+  } catch(e) {
+    document.getElementById('previewStatusText').textContent = 'NETWORK ERROR — check connection';
+    document.getElementById('camDetectedText').textContent   = '';
+    document.getElementById('confirmBtn').textContent = 'RETAKE';
+    document.getElementById('confirmBtn').disabled = false;
+    document.getElementById('confirmBtn').onclick = () => retake();
+  }
+}
+
+function retake() {
+  capturedBlob = null;
+  detectedRC   = null;
+  showViewfinder();
+  document.getElementById('confirmBtn').onclick = () => confirmPlate();
+}
+
+function confirmPlate() {
+  if (!detectedRC) return;
+  inp.value = detectedRC;
+  closeScanner();
+  doSearch();
+}
+
+// Fuzzy RC extractor — handles common OCR misreads
 function extractFuzzyRC(text) {
   const fixed = text
-    .replace(/O(?=\d)/g, '0')
+    .replace(/O(?=\d)/g,  '0')
     .replace(/(?<=\d)0(?=[A-Z])/g, 'O')
-    .replace(/I(?=\d)/g, '1')
-    .replace(/l/g, '1')
-    .replace(/S(?=\d)/g, '5')
-    .replace(/B(?=\d)/g, '8');
+    .replace(/I(?=\d)/g,  '1')
+    .replace(/l/g,        '1')
+    .replace(/S(?=\d)/g,  '5')
+    .replace(/B(?=\d)/g,  '8')
+    .replace(/Z(?=\d)/g,  '2')
+    .replace(/G(?=\d)/g,  '6');
 
   const patterns = [
     /([A-Z]{2}\d{2}[A-Z]{1,3}\d{4})/,
@@ -1522,26 +1605,6 @@ function extractFuzzyRC(text) {
   return null;
 }
 
-
-function onPlateDetected(rc) {
-  // Flash effect
-  const flash = document.getElementById('detectFlash');
-  flash.classList.remove('flash');
-  void flash.offsetWidth; // reflow
-  flash.classList.add('flash');
-
-  document.getElementById('camStatusText').textContent = '✓ PLATE CAPTURED — SEARCHING...';
-  document.getElementById('camDetectedText').textContent = rc;
-
-  // Fill input
-  inp.value = rc;
-
-  // Close scanner after short delay then search
-  setTimeout(() => {
-    closeScanner();
-    doSearch();
-  }, 600);
-}
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function renderResult(raw, rc) {
