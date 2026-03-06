@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 VEHIQ — Vehicle lookup proxy server
-Run: python server.py
-Then open: https://YOUR_PC_IP:5000  (note: https not http)
 
+Local:  python server.py  → http://localhost:5000
+Render: auto-detects PORT env variable, no SSL needed (Render handles HTTPS)
 """
 
 from flask import Flask, jsonify, request, send_file  # type: ignore
@@ -12,6 +12,7 @@ import os, socket, tempfile, subprocess
 
 app = Flask(__name__)
 
+# ── Obfuscated config (XOR encoded) ──────────────────────────────────────────
 _K = [110,135,149,142,52,192,80,195,80,96,177,51,172,149,118,200]
 _B = [6,243,225,254,71,250,127,236,51,1,195,30,193,252,14,229,8,226,240,163,80,165,61,172,126,22,212,65,207,240,26,230,15,247,229]
 _A = [42,194,216,193]
@@ -19,6 +20,7 @@ _d = lambda v: ''.join(chr(c ^ _K[i % len(_K)]) for i, c in enumerate(v))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -43,6 +45,8 @@ def vehicle():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ── SSL cert generator (local only) ──────────────────────────────────────────
+
 def generate_self_signed_cert():
     cert_dir  = tempfile.mkdtemp()
     cert_file = os.path.join(cert_dir, "cert.pem")
@@ -55,44 +59,56 @@ def generate_self_signed_cert():
         ], check=True, capture_output=True)
         return cert_file, key_file
     except Exception as e:
-        print(f"[VEHIQ] openssl not found or failed: {e}")
+        print(f"[VEHIQ] openssl not available: {e}")
         return None, None
 
+# ── Main ──────────────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-    except:
-        local_ip = "127.0.0.1"
+    port = int(os.environ.get("PORT", 5000))
+    is_render = os.environ.get("RENDER") == "true"
 
-    cert_file, key_file = generate_self_signed_cert()
+    # On Render: plain HTTP, Render handles HTTPS termination externally
+    if is_render:
+        print(f"[VEHIQ] Running on Render — port {port}, HTTP (Render handles HTTPS)")
+        app.run(host="0.0.0.0", port=port, debug=False)
 
-    if cert_file:
-        print(f"""
-  ╔══════════════════════════════════════════════════╗
-  ║           VEHIQ — VEHICLE INTELLIGENCE           ║
-  ╠══════════════════════════════════════════════════╣
-  ║  Local :  https://localhost:5000                 ║
-  ║  Mobile:  https://{local_ip}:5000
-  ╠══════════════════════════════════════════════════╣
-  ║  On mobile browser: tap Advanced → Proceed       ║
-  ║  (cert warning is normal — camera WILL work!)    ║
-  ╚══════════════════════════════════════════════════╝
-        """)
-        app.run(host="0.0.0.0", port=5000, debug=False,
-                ssl_context=(cert_file, key_file))
+    # Local: try HTTPS via self-signed cert for mobile camera support
     else:
-        print(f"""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+        except:
+            local_ip = "127.0.0.1"
+
+        cert_file, key_file = generate_self_signed_cert()
+
+        if cert_file:
+            print(f"""
   ╔══════════════════════════════════════════════════╗
   ║           VEHIQ — VEHICLE INTELLIGENCE           ║
   ╠══════════════════════════════════════════════════╣
-  ║  Local :  http://localhost:5000                  ║
-  ║  Mobile:  http://{local_ip}:5000
+  ║  Local :  https://localhost:{port}                   ║
+  ║  Mobile:  https://{local_ip}:{port}
   ╠══════════════════════════════════════════════════╣
-  ║  HTTP mode — camera scan won't work on mobile    ║
-  ║  Install openssl to enable HTTPS automatically.  ║
+  ║  On mobile: tap Advanced → Proceed (cert warn)   ║
+  ║  is normal — camera WILL work!                   ║
   ╚══════════════════════════════════════════════════╝
-        """)
-        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+            """)
+            app.run(host="0.0.0.0", port=port, debug=False,
+                    ssl_context=(cert_file, key_file))
+        else:
+            print(f"""
+  ╔══════════════════════════════════════════════════╗
+  ║           VEHIQ — VEHICLE INTELLIGENCE           ║
+  ╠══════════════════════════════════════════════════╣
+  ║  Local :  http://localhost:{port}                    ║
+  ║  Mobile:  http://{local_ip}:{port}
+  ╠══════════════════════════════════════════════════╣
+  ║  HTTP mode — camera won't work on mobile         ║
+  ║  Install openssl to enable HTTPS locally.        ║
+  ╚══════════════════════════════════════════════════╝
+            """)
+            app.run(host="0.0.0.0", port=port, debug=False)
