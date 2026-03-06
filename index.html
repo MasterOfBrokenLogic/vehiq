@@ -1082,7 +1082,7 @@ footer a#footerLink:hover {
 
 
     <div class="format-hint">
-      <span>Formats: <b>KL41V3504/b> &nbsp;|&nbsp; <b>KL53C2885</b> &nbsp;|&nbsp; <b>DL1CAA1234</b></span>
+      <span>Formats: <b>KL41V3504</b> &nbsp;|&nbsp; <b>KL53C2885</b> &nbsp;|&nbsp; <b>DL1CA6006</b></span>
       <span>Or tap the scan icon to use camera</span>
     </div>
 
@@ -1441,11 +1441,37 @@ async function captureAndSend() {
       const results = data.results || [];
 
       if (results.length > 0) {
-        // Pick highest confidence result
-        const best = results.reduce((a, b) =>
-          (b.score || 0) > (a.score || 0) ? b : a
-        );
-        const plate = best.plate?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        // Handle both response formats:
+        // Format A (newer): results[i].plate.props.plate[0].value
+        // Format B (older): results[i].plate (string) + results[i].score
+        let bestPlate = null;
+        let bestScore = -1;
+
+        for (const r of results) {
+          let plateStr = null;
+          let score = 0;
+
+          if (typeof r.plate === 'string') {
+            // Format B
+            plateStr = r.plate;
+            score = r.score || 0;
+          } else if (r.plate?.props?.plate?.length) {
+            // Format A
+            plateStr = r.plate.props.plate[0].value;
+            score = r.plate.props.plate[0].score || 0;
+          } else if (r.candidates?.length) {
+            // Fallback: candidates array
+            plateStr = r.candidates[0].plate;
+            score = r.candidates[0].score || 0;
+          }
+
+          if (plateStr && score > bestScore) {
+            bestPlate = plateStr;
+            bestScore = score;
+          }
+        }
+
+        const plate = bestPlate?.toUpperCase().replace(/[^A-Z0-9]/g, '');
         const rc = plate ? normalizeRC(plate) || extractFuzzyRC(plate) : null;
 
         if (rc) {
@@ -1618,7 +1644,7 @@ async function doSearch() {
   if (!rc) {
     hide('resultWrap'); hide('errorBox');
     document.getElementById('errorMsg').textContent =
-      `"${raw}" is not a valid RC number. Expected format: KL41V2354 or MH12AB1234`;
+      `"${raw}" is not a valid RC number. Expected format: KL41V3504 or KL53C2885`;
     show('errorBox');
     return;
   }
