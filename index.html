@@ -68,6 +68,7 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   transition: background 0.3s, color 0.3s;
+  visibility: hidden; /* hidden until auth check — prevents flash */
 }
 
 /* Mobile: lock scroll until results appear */
@@ -1188,7 +1189,7 @@ footer a#footerLink:hover {
     <div class="info-grid" id="infoGrid"></div>
   </div>
 
-  <footer>VEHIQ &nbsp;|&nbsp; VEHICLE INTELLIGENCE TERMINAL &nbsp;|&nbsp; BUILT BY <a href="https://t.me/drazeforce" target="_blank" rel="noopener" id="footerLink">@DRAZEFORCE</a></footer>
+  <footer>VEHIQ &nbsp;|&nbsp; VEHICLE INTELLIGENCE TERMINAL &nbsp;|&nbsp; BUILT BY <a href="https://t.me/drazeforce" target="_blank" rel="noopener" id="footerLink">@4NSIL!</a></footer>
 </div>
 
 <!-- ── Camera Modal ─────────────────────────────────────────────────────────── -->
@@ -1243,7 +1244,7 @@ footer a#footerLink:hover {
     <!-- Footer: viewfinder -->
     <div class="cam-footer" id="footerViewfinder" style="flex-direction:column;gap:10px;padding:12px 16px">
       <div style="width:100%;display:flex;align-items:center;gap:10px">
-        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;white-space:nowrap">⌕</span>
+        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;white-space:nowrap">🔍</span>
         <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1"
           style="flex:1;accent-color:var(--green);cursor:pointer;height:3px"
           oninput="applyZoom(this.value)"/>
@@ -2041,6 +2042,155 @@ document.getElementById('camOverlay').addEventListener('click', function(e) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeScanner();
 });
+</script>
+
+<!-- Firebase Auth Guard + Search Tracking -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, updateDoc, setDoc,
+  collection, addDoc, increment, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey:            "REPLACE_apiKey",
+  authDomain:        "REPLACE_authDomain",
+  projectId:         "REPLACE_projectId",
+  storageBucket:     "REPLACE_storageBucket",
+  messagingSenderId: "REPLACE_messagingSenderId",
+  appId:             "REPLACE_appId"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+let currentUID      = null;
+let currentUsername = null;
+
+// ── Auth check on load ────────────────────────────────────────────────────────
+onAuthStateChanged(auth, async user => {
+  if (!user) {
+    window.location.href = 'login.html';
+    return;
+  }
+  // Check banned + force logout flag
+  const snap = await getDoc(doc(db, 'users', user.uid));
+  if (!snap.exists()) { await signOut(auth); window.location.href = 'login.html'; return; }
+  const data = snap.data();
+  if (data.banned || data.forceLogout) {
+    await signOut(auth);
+    window.location.href = 'login.html';
+    return;
+  }
+  currentUID      = user.uid;
+  currentUsername = data.username;
+
+  // Reveal page — auth confirmed
+  document.body.style.visibility = 'visible';
+
+  // Update online status
+  await updateDoc(doc(db,'users',user.uid), {
+    online:      true,
+    forceLogout: false,
+    lastSeen:    serverTimestamp()
+  });
+
+  // Show username in header
+  const badge = document.createElement('span');
+  badge.style.cssText = "font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);";
+  badge.textContent   = currentUsername?.toUpperCase();
+  document.querySelector('.header-right').prepend(badge);
+
+  // Add logout button to header
+  const logoutBtn = document.createElement('button');
+  logoutBtn.style.cssText = "background:none;border:1px solid var(--dim);color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;padding:5px 10px;cursor:pointer;transition:all 0.2s;";
+  logoutBtn.textContent   = 'LOGOUT';
+  logoutBtn.onmouseover   = () => { logoutBtn.style.borderColor='var(--red)'; logoutBtn.style.color='var(--red)'; };
+  logoutBtn.onmouseout    = () => { logoutBtn.style.borderColor='var(--dim)'; logoutBtn.style.color='var(--muted)'; };
+  logoutBtn.onclick       = async () => {
+    await updateDoc(doc(db,'users',currentUID), { online:false, lastSeen:serverTimestamp() });
+    await signOut(auth);
+    window.location.href = 'login.html';
+  };
+  document.querySelector('.header-right').appendChild(logoutBtn);
+});
+
+// ── Mark offline on tab close ─────────────────────────────────────────────────
+window.addEventListener('beforeunload', () => {
+  if (currentUID) {
+    // Use beacon for reliability
+    const url = `https://firestore.googleapis.com/v1/projects/REPLACE_projectId/databases/(default)/documents/users/${currentUID}`;
+    navigator.sendBeacon(url, JSON.stringify({ online: false }));
+    updateDoc(doc(db,'users',currentUID), { online:false, lastSeen:serverTimestamp() }).catch(()=>{});
+  }
+});
+
+// ── Search tracking — hook into doSearch ─────────────────────────────────────
+// We wrap the fetch in index.html's doSearch to track searches
+const _origFetch = window.fetch.bind(window);
+window.fetch = async function(url, opts) {
+  const res = await _origFetch(url, opts);
+  // Only track vehicle API calls
+  if (typeof url === 'string' && url.includes('/api/vehicle') && currentUID) {
+    const rc = new URL(url, location.href).searchParams.get('rc');
+    if (rc) {
+      try {
+        // Check daily limit
+        const snap = await getDoc(doc(db,'users',currentUID));
+        const data = snap.data() || {};
+        const today = new Date().toISOString().slice(0,10);
+
+        if (data.lastSearchDate !== today) {
+          // New day — reset today count
+          await updateDoc(doc(db,'users',currentUID), {
+            todaySearchCount: 1,
+            lastSearchDate:   today,
+            searchCount:      increment(1),
+            lastSeen:         serverTimestamp()
+          });
+        } else {
+          const todayCount = data.todaySearchCount || 0;
+          const limit      = data.searchLimit || 100;
+          if (todayCount >= limit) {
+            // Block search — limit exceeded
+            stopLoader?.();
+            document.getElementById('searchBtn').disabled = false;
+            document.getElementById('errorMsg').textContent =
+              `DAILY SEARCH LIMIT REACHED (${limit}/day). Contact admin to increase your limit.`;
+            show('errorBox');
+            throw new Error('LIMIT_EXCEEDED');
+          }
+          await updateDoc(doc(db,'users',currentUID), {
+            todaySearchCount: increment(1),
+            searchCount:      increment(1),
+            lastSeen:         serverTimestamp()
+          });
+        }
+
+        // Save to search history subcollection
+        await addDoc(collection(db,'users',currentUID,'searches'), {
+          plate: rc,
+          ts:    serverTimestamp()
+        });
+
+        // Also keep last 50 in array for quick admin view
+        const hist = data.searchHistory || [];
+        hist.unshift({ plate: rc, time: new Date().toISOString() });
+        await updateDoc(doc(db,'users',currentUID), {
+          searchHistory: hist.slice(0,50)
+        });
+
+      } catch(e) {
+        if (e.message === 'LIMIT_EXCEEDED') throw e;
+        // Silently fail tracking — don't break search
+      }
+    }
+  }
+  return res;
+};
 </script>
 </body>
 </html>

@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VEHIQ — Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+<style>
+[data-theme="dark"]{
+  --bg:#030508; --surface:#080d12; --border:#0f2a1e;
+  --green:#00ff88; --cyan:#00e5ff; --dim:#1a4a32;
+  --text:#c8e8d8; --muted:#3a6650; --red:#ff3355;
+  --yellow:#ffcc00; --card-bg:#080d12;
+  --grid-color:rgba(0,255,136,0.03); --input-color:#fff;
+}
+[data-theme="light"]{
+  --bg:#f0f4f0; --surface:#ffffff; --border:#b8ddc8;
+  --green:#007a40; --cyan:#0088aa; --dim:#88b89a;
+  --text:#1a3328; --muted:#5a8870; --red:#cc1133;
+  --yellow:#aa7700; --card-bg:#ffffff;
+  --grid-color:rgba(0,100,60,0.05); --input-color:#0a1a12;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Rajdhani',sans-serif;
+  min-height:100vh;
+  background-image:
+    linear-gradient(var(--grid-color) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid-color) 1px,transparent 1px);
+  background-size:32px 32px;
+}
+body::after{
+  content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px);
+  pointer-events:none;z-index:999;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px;
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+  position:sticky;top:0;z-index:100;
+}
+.logo{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:22px;letter-spacing:6px;cursor:pointer;
+}
+.logo span{color:var(--cyan);}
+.admin-badge{
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px;letter-spacing:3px;
+  color:var(--red);border:1px solid var(--red);
+  padding:3px 8px;
+}
+.header-right{display:flex;align-items:center;gap:12px;}
+.logout-btn{
+  background:none;border:1px solid var(--dim);
+  color:var(--muted);
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px;letter-spacing:2px;
+  padding:6px 12px;cursor:pointer;
+  transition:all 0.2s;
+}
+.logout-btn:hover{border-color:var(--red);color:var(--red);}
+
+/* ── Main ────────────────────────────────────────────────────────────────── */
+.main{padding:24px;max-width:1200px;margin:0 auto;}
+
+/* ── Stats row ───────────────────────────────────────────────────────────── */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:12px;margin-bottom:24px;
+}
+.stat-card{
+  background:var(--card-bg);border:1px solid var(--border);
+  padding:16px 18px;
+  clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);
+}
+.stat-val{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:32px;letter-spacing:2px;color:var(--green);
+  line-height:1;
+}
+.stat-label{
+  font-family:'Share Tech Mono',monospace;
+  font-size:8px;letter-spacing:3px;color:var(--muted);
+  margin-top:4px;
+}
+
+/* ── Section ─────────────────────────────────────────────────────────────── */
+.section{
+  background:var(--card-bg);border:1px solid var(--border);
+  margin-bottom:20px;
+}
+.section-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  flex-wrap:wrap;gap:8px;
+}
+.section-title{
+  font-family:'Share Tech Mono',monospace;
+  font-size:10px;letter-spacing:4px;color:var(--green);
+}
+.search-input{
+  background:rgba(0,0,0,0.4);border:1px solid var(--dim);
+  color:var(--input-color);
+  font-family:'Share Tech Mono',monospace;
+  font-size:11px;letter-spacing:1px;
+  padding:7px 12px;outline:none;
+  transition:border-color 0.2s;width:220px;
+}
+.search-input:focus{border-color:var(--green);}
+.search-input::placeholder{color:var(--muted);}
+
+/* ── User Cards ──────────────────────────────────────────────────────────── */
+.user-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+  gap:12px;
+  padding:16px;
+}
+.user-card{
+  background:rgba(0,0,0,0.3);
+  border:1px solid var(--border);
+  padding:14px 16px;
+  display:flex;flex-direction:column;gap:10px;
+  transition:border-color 0.2s;
+}
+.user-card:hover{border-color:var(--dim);}
+.user-card.banned{border-color:rgba(255,51,85,0.4);opacity:0.7;}
+
+.card-top{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:8px;
+}
+.card-username{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:18px;letter-spacing:3px;color:var(--text);
+}
+.card-rows{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px 12px;
+}
+.card-row{display:flex;flex-direction:column;gap:1px;}
+.card-lbl{
+  font-family:'Share Tech Mono',monospace;
+  font-size:7px;letter-spacing:2px;color:var(--muted);
+}
+.card-val{
+  font-family:'Share Tech Mono',monospace;
+  font-size:11px;letter-spacing:1px;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.card-actions{
+  display:flex;gap:6px;flex-wrap:wrap;
+  padding-top:8px;border-top:1px solid var(--border);
+}
+
+.no-users{
+  padding:32px;text-align:center;
+  font-family:'Share Tech Mono',monospace;
+  font-size:10px;letter-spacing:3px;color:var(--muted);
+}
+
+.badge{
+  font-family:'Share Tech Mono',monospace;
+  font-size:8px;letter-spacing:2px;
+  padding:3px 7px;display:inline-block;
+}
+.badge-online{color:var(--green);border:1px solid var(--green);}
+.badge-offline{color:var(--muted);border:1px solid var(--dim);}
+.badge-banned{color:var(--red);border:1px solid var(--red);}
+
+.mono{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1px;}
+.dim{color:var(--muted);}
+
+/* ── Action buttons ──────────────────────────────────────────────────────── */
+.actions{display:flex;gap:6px;flex-wrap:wrap;}
+.act-btn{
+  font-family:'Share Tech Mono',monospace;
+  font-size:8px;letter-spacing:2px;
+  padding:5px 10px;cursor:pointer;
+  background:none;border:1px solid;
+  transition:all 0.15s;white-space:nowrap;
+}
+.act-btn.ban{border-color:var(--red);color:var(--red);}
+.act-btn.ban:hover{background:var(--red);color:#000;}
+.act-btn.unban{border-color:var(--green);color:var(--green);}
+.act-btn.unban:hover{background:var(--green);color:#000;}
+.act-btn.logout-u{border-color:var(--yellow);color:var(--yellow);}
+.act-btn.logout-u:hover{background:var(--yellow);color:#000;}
+.act-btn.limit{border-color:var(--cyan);color:var(--cyan);}
+.act-btn.limit:hover{background:var(--cyan);color:#000;}
+.act-btn.history{border-color:var(--muted);color:var(--muted);}
+.act-btn.history:hover{border-color:var(--text);color:var(--text);}
+
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,0.85);
+  z-index:500;align-items:center;justify-content:center;
+  padding:20px;
+}
+.modal-overlay.active{display:flex;}
+.modal{
+  background:var(--card-bg);border:1px solid var(--border);
+  max-width:520px;width:100%;
+  clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
+  padding:28px;
+  position:relative;
+}
+.modal::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+}
+.modal-title{
+  font-family:'Share Tech Mono',monospace;
+  font-size:10px;letter-spacing:4px;color:var(--cyan);
+  margin-bottom:18px;
+}
+.modal-body{font-size:14px;line-height:1.7;color:var(--text);margin-bottom:20px;}
+.modal-input{
+  width:100%;background:rgba(0,0,0,0.4);border:1px solid var(--dim);
+  color:var(--input-color);font-family:'Share Tech Mono',monospace;
+  font-size:14px;letter-spacing:2px;padding:11px 14px;outline:none;
+  margin-bottom:16px;
+}
+.modal-input:focus{border-color:var(--cyan);}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;}
+.modal-btn{
+  font-family:'Share Tech Mono',monospace;font-size:10px;
+  letter-spacing:2px;padding:9px 18px;cursor:pointer;
+  background:none;border:1px solid;transition:all 0.2s;
+}
+.modal-btn.confirm{border-color:var(--green);color:var(--green);}
+.modal-btn.confirm:hover{background:var(--green);color:#000;}
+.modal-btn.cancel{border-color:var(--dim);color:var(--muted);}
+.modal-btn.cancel:hover{border-color:var(--text);color:var(--text);}
+
+/* ── History modal ───────────────────────────────────────────────────────── */
+.hist-list{
+  max-height:300px;overflow-y:auto;
+  border:1px solid var(--border);
+  margin-bottom:16px;
+}
+.hist-item{
+  display:flex;justify-content:space-between;
+  padding:8px 12px;border-bottom:1px solid rgba(15,42,30,0.4);
+  font-family:'Share Tech Mono',monospace;font-size:11px;
+}
+.hist-item:last-child{border-bottom:none;}
+.hist-plate{color:var(--green);letter-spacing:2px;}
+.hist-time{color:var(--muted);font-size:9px;}
+.hist-empty{
+  padding:20px;text-align:center;
+  font-family:'Share Tech Mono',monospace;
+  font-size:10px;color:var(--muted);letter-spacing:2px;
+}
+
+/* ── Sessions section ────────────────────────────────────────────────────── */
+.session-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;border-bottom:1px solid rgba(15,42,30,0.4);
+  flex-wrap:wrap;gap:8px;
+}
+.session-item:last-child{border-bottom:none;}
+
+/* ── Refresh btn ─────────────────────────────────────────────────────────── */
+.refresh-btn{
+  font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:2px;
+  padding:6px 12px;cursor:pointer;background:none;
+  border:1px solid var(--dim);color:var(--muted);
+  transition:all 0.2s;
+}
+.refresh-btn:hover{border-color:var(--green);color:var(--green);}
+
+@keyframes spin{to{transform:rotate(360deg);}}
+.spin{
+  display:inline-block;width:10px;height:10px;
+  border:2px solid var(--dim);border-top-color:var(--green);
+  border-radius:50%;animation:spin 0.7s linear infinite;
+  vertical-align:middle;margin-right:4px;
+}
+.loading-row td{text-align:center;padding:24px;color:var(--muted);
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:3px;}
+
+/* ── Broadcast ───────────────────────────────────────────────────────────── */
+.broadcast-bar{
+  display:flex;gap:10px;padding:14px 18px;
+  border-top:1px solid var(--border);
+  align-items:center;flex-wrap:wrap;
+}
+.broadcast-input{
+  flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--dim);
+  color:var(--input-color);font-family:'Share Tech Mono',monospace;
+  font-size:11px;letter-spacing:1px;padding:9px 14px;outline:none;
+  min-width:180px;
+}
+.broadcast-input:focus{border-color:var(--cyan);}
+</style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;align-items:center;gap:14px;">
+    <div class="logo" onclick="location.href='index.html'">VEH<span>IQ</span></div>
+    <div class="admin-badge">ADMIN</div>
+  </div>
+  <div class="header-right">
+    <button class="refresh-btn">REFRESH</button>
+    <button class="logout-btn">LOGOUT</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-val" id="statTotal">—</div>
+      <div class="stat-label">TOTAL USERS</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statOnline" style="color:var(--green)">—</div>
+      <div class="stat-label">ONLINE NOW</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statBanned" style="color:var(--red)">—</div>
+      <div class="stat-label">BANNED</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statSearches" style="color:var(--cyan)">—</div>
+      <div class="stat-label">TOTAL SEARCHES</div>
+    </div>
+  </div>
+
+  <!-- Active Sessions -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">// ACTIVE SESSIONS</div>
+    </div>
+    <div id="sessionsList">
+      <div style="padding:16px 18px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;">LOADING...</div>
+    </div>
+  </div>
+
+  <!-- Users Table -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">// USER REGISTRY</div>
+      <input class="search-input" type="text" placeholder="SEARCH USERNAME..."/>
+    </div>
+    <div class="table-wrap">
+      <div id="userGrid" class="user-grid">
+        <div class="no-users"><span class="spin"></span> LOADING...</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- History Modal -->
+<div class="modal-overlay" id="historyModal">
+  <div class="modal">
+    <div class="modal-title">// SEARCH HISTORY — <span id="historyUsername"></span></div>
+    <div class="hist-list" id="historyList"></div>
+    <div class="modal-footer">
+      <button class="modal-btn cancel">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Limit Modal -->
+<div class="modal-overlay" id="limitModal">
+  <div class="modal">
+    <div class="modal-title">// SET SEARCH LIMIT</div>
+    <div class="modal-body" id="limitModalBody"></div>
+    <input class="modal-input" type="number" id="limitInput" min="1" max="9999" placeholder="100"/>
+    <div class="modal-footer">
+      <button class="modal-btn cancel">CANCEL</button>
+      <button class="modal-btn confirm">SET LIMIT</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal">
+    <div class="modal-title" id="confirmTitle">// CONFIRM ACTION</div>
+    <div class="modal-body" id="confirmBody"></div>
+    <div class="modal-footer">
+      <button class="modal-btn cancel">CANCEL</button>
+      <button class="modal-btn confirm" id="confirmOkBtn">CONFIRM</button>
+    </div>
+  </div>
+</div>
+
+<footer style="text-align:center;padding:20px;font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--muted);border-top:1px solid var(--border);margin-top:8px;">
+  VEHIQ &nbsp;|&nbsp; ADMIN PANEL &nbsp;|&nbsp; BUILT BY <a href="https://t.me/drazeforce" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--green)'" onmouseout="this.style.color='inherit'">@4NSIL!</a>
+</footer>
+
+<script type="module">
+import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth }         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getFirestore, collection, getDocs, doc, updateDoc,
+  query, orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ── Firebase config — REPLACE WITH YOUR VALUES ───────────────────────────────
+const firebaseConfig = {
+  apiKey:            "REPLACE_apiKey",
+  authDomain:        "REPLACE_authDomain",
+  projectId:         "REPLACE_projectId",
+  storageBucket:     "REPLACE_storageBucket",
+  messagingSenderId: "REPLACE_messagingSenderId",
+  appId:             "REPLACE_appId"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+// ── Auth guard ────────────────────────────────────────────────────────────────
+if (sessionStorage.getItem('vehiq_admin') !== '1') {
+  window.location.href = 'login.html';
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let allUsers    = [];
+let limitTarget = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtTime(ts) {
+  if (!ts) return '—';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+function timeSince(ts) {
+  if (!ts) return '—';
+  const d   = ts.toDate ? ts.toDate() : new Date(ts);
+  const sec = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (sec < 60)  return sec + 's ago';
+  if (sec < 3600) return Math.floor(sec/60) + 'm ago';
+  if (sec < 86400) return Math.floor(sec/3600) + 'h ago';
+  return Math.floor(sec/86400) + 'd ago';
+}
+
+// ── Load all ──────────────────────────────────────────────────────────────────
+async function loadAll() {
+  document.getElementById('userGrid').innerHTML =
+    '<div class="no-users"><span class="spin"></span> LOADING...</div>';
+
+  const snap = await getDocs(query(collection(db,'users'), orderBy('createdAt','desc')));
+  allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  // Stats
+  const online  = allUsers.filter(u => u.online).length;
+  const banned  = allUsers.filter(u => u.banned).length;
+  const searches = allUsers.reduce((a,u) => a + (u.searchCount||0), 0);
+  document.getElementById('statTotal').textContent   = allUsers.length;
+  document.getElementById('statOnline').textContent  = online;
+  document.getElementById('statBanned').textContent  = banned;
+  document.getElementById('statSearches').textContent = searches;
+
+  renderSessions();
+  renderTable(allUsers);
+};
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
+function renderSessions() {
+  const online = allUsers.filter(u => u.online && !u.banned);
+  const el = document.getElementById('sessionsList');
+  if (!online.length) {
+    el.innerHTML = '<div style="padding:14px 18px;font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;">NO ACTIVE SESSIONS</div>';
+    return;
+  }
+  el.innerHTML = online.map(u => `
+    <div class="session-item">
+      <div>
+        <span class="mono" style="color:var(--green)">${u.username}</span>
+        <span class="dim mono" style="font-size:9px;margin-left:10px;">${u.lastIP || '—'}</span>
+        <span class="dim mono" style="font-size:9px;margin-left:10px;">${u.browser || ''} / ${u.device || ''}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="dim mono" style="font-size:9px;">LAST SEEN ${timeSince(u.lastSeen)}</span>
+        <button class="act-btn logout-u" data-action="forcelogout" data-uid="${u.id}" data-name="${u.username}">FORCE LOGOUT</button>
+      </div>
+    </div>`).join('');
+
+  el.onclick = e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    forceLogout(btn.dataset.uid, btn.dataset.name);
+  };
+}
+
+// ── Cards ──────────────────────────────────────────────────────────────────
+function renderTable(users) {
+  const grid = document.getElementById('userGrid');
+  if (!users.length) {
+    grid.innerHTML = '<div class="no-users">NO USERS FOUND</div>';
+    return;
+  }
+
+  grid.innerHTML = users.map(u => {
+    const statusBadge = u.banned
+      ? '<span class="badge badge-banned">BANNED</span>'
+      : u.online
+        ? '<span class="badge badge-online">ONLINE</span>'
+        : '<span class="badge badge-offline">OFFLINE</span>';
+
+    const todayCount = u.todaySearchCount || 0;
+    const limit      = u.searchLimit || 100;
+    const limitColor = todayCount >= limit ? 'var(--red)' : todayCount >= limit * 0.8 ? 'var(--yellow)' : 'var(--green)';
+    const failStyle  = (u.failedLogins || 0) > 5 ? 'color:var(--red)' : '';
+    const bannedClass = u.banned ? 'user-card banned' : 'user-card';
+
+    const banBtn = u.banned
+      ? `<button class="act-btn unban"   data-action="unban"      data-uid="${u.id}" data-name="${u.username}">UNBAN</button>`
+      : `<button class="act-btn ban"     data-action="ban"        data-uid="${u.id}" data-name="${u.username}">BAN</button>`;
+
+    return `<div class="${bannedClass}">
+      <div class="card-top">
+        <span class="card-username">${u.username}</span>
+        ${statusBadge}
+      </div>
+      <div class="card-rows">
+        <div class="card-row">
+          <span class="card-lbl">LAST SEEN</span>
+          <span class="card-val">${timeSince(u.lastSeen)}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-lbl">TODAY / LIMIT</span>
+          <span class="card-val" style="color:${limitColor}">${todayCount} / ${limit}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-lbl">TOTAL SEARCHES</span>
+          <span class="card-val">${u.searchCount || 0}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-lbl">TOTAL LOGINS</span>
+          <span class="card-val">${u.totalLogins || 0}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-lbl">FAILED LOGINS</span>
+          <span class="card-val" style="${failStyle}">${u.failedLogins || 0}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-lbl">JOINED</span>
+          <span class="card-val">${fmtTime(u.createdAt)}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-lbl">IP</span>
+          <span class="card-val">${u.lastIP || '—'}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-lbl">DEVICE</span>
+          <span class="card-val">${u.browser || '—'} / ${u.device || '—'}</span>
+        </div>
+      </div>
+      <div class="card-actions">
+        ${banBtn}
+        <button class="act-btn logout-u" data-action="forcelogout" data-uid="${u.id}" data-name="${u.username}">FORCE LOGOUT</button>
+        <button class="act-btn limit"    data-action="limit"       data-uid="${u.id}" data-name="${u.username}" data-limit="${limit}">SET LIMIT</button>
+        <button class="act-btn history"  data-action="history"     data-uid="${u.id}" data-name="${u.username}">HISTORY</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Event delegation on grid
+  grid.onclick = e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, uid, name, limit: lim } = btn.dataset;
+    if (action === 'ban')          banUser(uid, name);
+    else if (action === 'unban')   unbanUser(uid, name);
+    else if (action === 'forcelogout') forceLogout(uid, name);
+    else if (action === 'limit')   setLimit(uid, name, parseInt(lim));
+    else if (action === 'history') showHistory(uid, name);
+  };
+}
+
+function filterUsers(val) {
+  const q = val.trim().toLowerCase();
+  renderTable(q ? allUsers.filter(u => u.username?.includes(q)) : allUsers);
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function banUser(uid, username) {
+  showConfirm('BAN USER: ' + username.toUpperCase(),
+    'This will block ' + username + ' from logging in.', async () => {
+    await updateDoc(doc(db,'users',uid), { banned: true, online: false });
+    await loadAll();
+  });
+}
+
+function unbanUser(uid, username) {
+  showConfirm('UNBAN USER: ' + username.toUpperCase(),
+    'This will restore ' + username + "'s access.", async () => {
+    await updateDoc(doc(db,'users',uid), { banned: false });
+    await loadAll();
+  });
+}
+
+function forceLogout(uid, username) {
+  showConfirm('FORCE LOGOUT: ' + username.toUpperCase(),
+    'This will mark ' + username + ' as offline and invalidate their session.', async () => {
+    await updateDoc(doc(db,'users',uid), { online: false, forceLogout: true });
+    await loadAll();
+  });
+}
+
+function setLimit(uid, username, current) {
+  limitTarget = { uid, username };
+  document.getElementById('limitModalBody').textContent =
+    'Set daily search limit for ' + username + '. Current limit: ' + current;
+  document.getElementById('limitInput').value = current;
+  document.getElementById('limitModal').classList.add('active');
+}
+
+async function confirmLimit() {
+  if (!limitTarget) return;
+  const val = parseInt(document.getElementById('limitInput').value);
+  if (isNaN(val) || val < 1) return;
+  await updateDoc(doc(db,'users',limitTarget.uid), { searchLimit: val });
+  closeModal('limitModal');
+  await loadAll();
+}
+
+async function showHistory(uid, username) {
+  document.getElementById('historyUsername').textContent = username.toUpperCase();
+  const list = document.getElementById('historyList');
+  list.innerHTML = '<div class="hist-empty"><span class="spin"></span> LOADING...</div>';
+  document.getElementById('historyModal').classList.add('active');
+
+  const snap = await getDocs(query(
+    collection(db,'users',uid,'searches'),
+    orderBy('ts','desc')
+  )).catch(() => null);
+
+  if (!snap || snap.empty) {
+    const user = allUsers.find(u => u.id === uid);
+    const hist = user?.searchHistory || [];
+    if (!hist.length) {
+      list.innerHTML = '<div class="hist-empty">NO SEARCH HISTORY</div>';
+      return;
+    }
+    list.innerHTML = hist.slice().reverse().map(h =>
+      '<div class="hist-item">' +
+        '<span class="hist-plate">' + (h.plate || h) + '</span>' +
+        '<span class="hist-time">' + (h.time ? new Date(h.time).toLocaleString('en-IN') : '') + '</span>' +
+      '</div>'
+    ).join('');
+    return;
+  }
+
+  list.innerHTML = snap.docs.map(d => {
+    const data = d.data();
+    return '<div class="hist-item">' +
+      '<span class="hist-plate">' + (data.plate || '—') + '</span>' +
+      '<span class="hist-time">' + fmtTime(data.ts) + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+function showConfirm(title, body, onConfirm) {
+  document.getElementById('confirmTitle').textContent = '// ' + title;
+  document.getElementById('confirmBody').textContent  = body;
+  document.getElementById('confirmOkBtn').onclick     = async () => {
+    closeModal('confirmModal');
+    await onConfirm();
+  };
+  document.getElementById('confirmModal').classList.add('active');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+// Wire modal close buttons (can't use onclick in HTML with module scope)
+document.getElementById('limitModal').querySelector('.cancel')
+  .addEventListener('click', () => closeModal('limitModal'));
+document.getElementById('confirmModal').querySelector('.cancel')
+  .addEventListener('click', () => closeModal('confirmModal'));
+document.getElementById('historyModal').querySelector('.cancel')
+  .addEventListener('click', () => closeModal('historyModal'));
+document.getElementById('confirmModal').querySelector('.confirm[id="confirmOkBtn"]')
+  .addEventListener('click', () => {}); // handled dynamically in showConfirm
+
+// Wire limit confirm button
+document.getElementById('limitModal').querySelector('.confirm')
+  .addEventListener('click', confirmLimit);
+
+// Click outside modal to close
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('active'); });
+});
+
+// Wire search input
+document.querySelector('.search-input')
+  .addEventListener('input', e => filterUsers(e.target.value));
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+function adminLogout() {
+  sessionStorage.removeItem('vehiq_admin');
+  window.location.href = 'login.html';
+}
+document.querySelector('.logout-btn').addEventListener('click', adminLogout);
+document.querySelector('.refresh-btn').addEventListener('click', loadAll);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadAll();
+setInterval(loadAll, 30000);
+
+</script>
+
+<script>
+function toggleTheme() {
+  const h = document.documentElement;
+  h.setAttribute('data-theme', h.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+</script>
+
+</body>
+</html>

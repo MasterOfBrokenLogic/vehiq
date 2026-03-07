@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VEHIQ — Access Terminal</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+<style>
+[data-theme="dark"] {
+  --bg:#030508; --surface:#080d12; --border:#0f2a1e;
+  --green:#00ff88; --cyan:#00e5ff; --dim:#1a4a32;
+  --text:#c8e8d8; --muted:#3a6650; --red:#ff3355;
+  --card-bg:#080d12; --grid-color:rgba(0,255,136,0.03);
+  --input-color:#fff;
+}
+[data-theme="light"] {
+  --bg:#f0f4f0; --surface:#ffffff; --border:#b8ddc8;
+  --green:#007a40; --cyan:#0088aa; --dim:#88b89a;
+  --text:#1a3328; --muted:#5a8870; --red:#cc1133;
+  --card-bg:#ffffff; --grid-color:rgba(0,100,60,0.05);
+  --input-color:#0a1a12;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;width:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Rajdhani',sans-serif;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  min-height:100vh;
+  background-image:
+    linear-gradient(var(--grid-color) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid-color) 1px,transparent 1px);
+  background-size:32px 32px;
+  padding:20px;
+}
+
+/* Header */
+.logo{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:28px; letter-spacing:8px;
+  color:var(--text);
+  text-shadow:0 0 20px rgba(0,255,136,0.3);
+  margin-bottom:4px;
+}
+.logo span{color:var(--cyan);}
+.tagline{
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px; letter-spacing:4px;
+  color:var(--muted); margin-bottom:32px;
+}
+
+/* Card */
+.card{
+  width:100%; max-width:400px;
+  background:var(--card-bg);
+  border:1px solid var(--border);
+  clip-path:polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,20px 100%,0 calc(100% - 20px));
+  padding:32px 28px;
+  position:relative;
+}
+.card::before{
+  content:'';
+  position:absolute; top:0; left:0; right:0;
+  height:1px;
+  background:linear-gradient(90deg,transparent,var(--green),transparent);
+}
+
+.card-title{
+  font-family:'Share Tech Mono',monospace;
+  font-size:11px; letter-spacing:4px;
+  color:var(--green); margin-bottom:24px;
+}
+
+/* Tabs */
+.tabs{display:flex; gap:0; margin-bottom:28px; border-bottom:1px solid var(--border);}
+.tab{
+  flex:1; padding:10px; text-align:center;
+  font-family:'Share Tech Mono',monospace;
+  font-size:11px; letter-spacing:3px;
+  color:var(--muted); cursor:pointer;
+  border-bottom:2px solid transparent;
+  transition:all 0.2s; background:none; border-top:none; border-left:none; border-right:none;
+}
+.tab.active{color:var(--green); border-bottom-color:var(--green);}
+.tab:hover:not(.active){color:var(--text);}
+
+/* Form */
+.form{display:flex; flex-direction:column; gap:16px;}
+.form.hidden{display:none;}
+
+.field{display:flex; flex-direction:column; gap:6px;}
+.field label{
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px; letter-spacing:3px; color:var(--muted);
+}
+.field input{
+  background:rgba(0,0,0,0.4);
+  border:1px solid var(--dim);
+  color:var(--input-color);
+  font-family:'Share Tech Mono',monospace;
+  font-size:14px; letter-spacing:2px;
+  padding:12px 14px;
+  outline:none;
+  transition:border-color 0.2s;
+  width:100%;
+  -webkit-user-select:text; user-select:text;
+}
+.field input:focus{border-color:var(--green);}
+.field input::placeholder{color:var(--muted); font-size:12px;}
+
+.submit-btn{
+  width:100%; padding:14px;
+  background:transparent;
+  border:1px solid var(--green);
+  color:var(--green);
+  font-family:'Bebas Neue',sans-serif;
+  font-size:17px; letter-spacing:5px;
+  cursor:pointer;
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));
+  transition:all 0.2s; position:relative; overflow:hidden; margin-top:4px;
+}
+.submit-btn::before{
+  content:''; position:absolute; inset:0;
+  background:var(--green); transform:translateX(-100%);
+  transition:transform 0.25s; z-index:0;
+}
+.submit-btn:hover::before{transform:translateX(0);}
+.submit-btn:hover{color:#000;}
+.submit-btn>span{position:relative; z-index:1;}
+.submit-btn:disabled{opacity:0.4; cursor:not-allowed;}
+.submit-btn:disabled::before{transform:translateX(-100%) !important;}
+.submit-btn:disabled{color:var(--green) !important;}
+
+/* Messages */
+.msg{
+  font-family:'Share Tech Mono',monospace;
+  font-size:10px; letter-spacing:2px;
+  padding:10px 12px;
+  display:none;
+}
+.msg.error{
+  color:var(--red); border:1px solid var(--red);
+  background:rgba(255,51,85,0.05);
+}
+.msg.success{
+  color:var(--green); border:1px solid var(--green);
+  background:rgba(0,255,136,0.05);
+}
+.msg.active{display:block;}
+
+/* Password rules */
+.pw-rules{
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px; letter-spacing:1px;
+  color:var(--muted); line-height:1.8;
+}
+.pw-rules span{display:block;}
+.pw-rules span.ok{color:var(--green);}
+.pw-rules span.fail{color:var(--muted);}
+
+/* Theme toggle */
+.theme-btn{
+  position:fixed; top:16px; right:16px;
+  background:none; border:1px solid var(--dim);
+  color:var(--muted); width:36px; height:36px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:all 0.2s;
+}
+.theme-btn:hover{border-color:var(--cyan); color:var(--cyan);}
+
+/* Loader ring inside button */
+.spin{
+  display:inline-block; width:12px; height:12px;
+  border:2px solid rgba(0,0,0,0.3);
+  border-top-color:#000;
+  border-radius:50%;
+  animation:spin 0.7s linear infinite;
+  vertical-align:middle; margin-right:6px;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* Scanline overlay */
+body::after{
+  content:'';
+  position:fixed; inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px);
+  pointer-events:none; z-index:999;
+}
+
+.corner-tag{
+  font-family:'Share Tech Mono',monospace;
+  font-size:8px; letter-spacing:2px;
+  color:var(--dim); text-align:center;
+  margin-top:20px;
+}
+</style>
+</head>
+<body>
+
+<button class="theme-btn" onclick="toggleTheme()" title="Toggle theme">
+  <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+</button>
+
+<div class="logo">VEH<span>IQ</span></div>
+<div class="tagline">// VEHICLE INTELLIGENCE TERMINAL</div>
+
+<div class="card">
+  <div class="card-title">// ACCESS TERMINAL</div>
+
+  <div class="tabs">
+    <button class="tab active" id="tabLogin" onclick="switchTab('login')">LOGIN</button>
+    <button class="tab" id="tabRegister" onclick="switchTab('register')">REGISTER</button>
+  </div>
+
+  <!-- Login Form -->
+  <div class="form" id="formLogin">
+    <div class="field">
+      <label>USERNAME</label>
+      <input type="text" id="loginUser" placeholder="enter username" autocomplete="username" spellcheck="false"/>
+    </div>
+    <div class="field">
+      <label>PASSWORD</label>
+      <input type="password" id="loginPass" placeholder="enter password" autocomplete="current-password"/>
+    </div>
+    <div class="msg error" id="loginErr"></div>
+    <button class="submit-btn" id="loginBtn">
+      <span id="loginBtnText">ENTER SYSTEM</span>
+    </button>
+  </div>
+
+  <!-- Register Form -->
+  <div class="form hidden" id="formRegister">
+    <div class="field">
+      <label>USERNAME</label>
+      <input type="text" id="regUser" placeholder="choose username" autocomplete="username"
+        spellcheck="false" oninput="this.value=this.value.replace(/\s/g,'').toLowerCase()"/>
+    </div>
+    <div class="field">
+      <label>PASSWORD</label>
+      <input type="password" id="regPass" placeholder="min 8 chars" autocomplete="new-password"/>
+    </div>
+    <div class="pw-rules" id="pwRules">
+      <span id="r1" class="fail">- At least 8 characters</span>
+      <span id="r2" class="fail">- At least one number</span>
+      <span id="r3" class="fail">- At least one letter</span>
+    </div>
+    <div class="field">
+      <label>CONFIRM PASSWORD</label>
+      <input type="password" id="regPassConfirm" placeholder="repeat password" autocomplete="new-password"/>
+    </div>
+    <div class="msg error" id="regErr"></div>
+    <div class="msg success" id="regOk"></div>
+    <button class="submit-btn" id="regBtn">
+      <span id="regBtnText">CREATE ACCOUNT</span>
+    </button>
+  </div>
+</div>
+
+<div class="corner-tag">VEHIQ v2.0 &nbsp;|&nbsp; BUILT BY <a href="https://t.me/drazeforce" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">@4NSIL!</a></div>
+
+<!-- Firebase SDKs -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, query, collection, where, getDocs, serverTimestamp, increment }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ── Firebase config — REPLACE WITH YOUR VALUES ───────────────────────────────
+const firebaseConfig = {
+  apiKey:            "REPLACE_apiKey",
+  authDomain:        "REPLACE_authDomain",
+  projectId:         "REPLACE_projectId",
+  storageBucket:     "REPLACE_storageBucket",
+  messagingSenderId: "REPLACE_messagingSenderId",
+  appId:             "REPLACE_appId"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+// ── Admin credentials (obfuscated XOR) ───────────────────────────────────────
+const _AK = [86,69,72,73,81];
+const _AU = [32,32,32,32,32,55,33,37,32,63]; // "vehiqadmin"
+const _AP = [0,0,0,104,0,22,113,44,36,96,56,102,122,121,99,99]; // "VEH!Q@4dm1n#2025"
+const _da = v => v.map((c,i)=>String.fromCharCode(c^_AK[i%_AK.length])).join('');
+const ADMIN_USER = _da(_AU);
+const ADMIN_PASS = _da(_AP);
+
+// ── Auth state — redirect if already logged in ────────────────────────────────
+onAuthStateChanged(auth, async user => {
+  if (user) {
+    // Check if banned before redirecting
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    if (snap.exists() && snap.data().banned) {
+      await auth.signOut();
+      showErr('loginErr', 'ACCOUNT BANNED — CONTACT ADMIN');
+      return;
+    }
+    window.location.href = 'index.html';
+  }
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function getDeviceInfo() {
+  const ua  = navigator.userAgent;
+  const mob = /Mobi|Android/i.test(ua);
+  const browser = /Chrome/i.test(ua) ? 'Chrome'
+    : /Firefox/i.test(ua) ? 'Firefox'
+    : /Safari/i.test(ua)  ? 'Safari'
+    : /Edge/i.test(ua)    ? 'Edge' : 'Unknown';
+  return { device: mob ? 'Mobile' : 'Desktop', browser, ua: ua.slice(0,120) };
+}
+
+async function getIP() {
+  try {
+    const r = await fetch('https://api.ipify.org?format=json');
+    const d = await r.json();
+    return d.ip || 'unknown';
+  } catch { return 'unknown'; }
+}
+
+function usernameToEmail(u) {
+  return u.trim().toLowerCase() + '@vehiq.internal';
+}
+
+function showErr(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.classList.add('active');
+  el.className = 'msg error active';
+}
+function showOk(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.classList.add('active');
+  el.className = 'msg success active';
+}
+function clearMsg(id) {
+  const el = document.getElementById(id);
+  el.textContent = ''; el.classList.remove('active');
+}
+function setLoading(btnId, textId, loading, label) {
+  const btn = document.getElementById(btnId);
+  const txt = document.getElementById(textId);
+  btn.disabled = loading;
+  txt.innerHTML = loading ? `<span class="spin"></span>PROCESSING...` : label;
+}
+
+function checkPwRules(val) {
+  document.getElementById('r1').className = val.length >= 8 ? 'ok' : 'fail';
+  document.getElementById('r2').className = /\d/.test(val) ? 'ok' : 'fail';
+  document.getElementById('r3').className = /[a-zA-Z]/.test(val) ? 'ok' : 'fail';
+};
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  clearMsg('loginErr');
+  const username = document.getElementById('loginUser').value.trim().toLowerCase();
+  const password = document.getElementById('loginPass').value;
+
+  if (!username || !password) { showErr('loginErr', 'ALL FIELDS REQUIRED'); return; }
+
+  // Admin check
+  if (username === ADMIN_USER && password === ADMIN_PASS) {
+    sessionStorage.setItem('vehiq_admin', '1');
+    window.location.href = 'admin.html';
+    return;
+  }
+
+  setLoading('loginBtn','loginBtnText', true);
+
+  try {
+    const email = usernameToEmail(username);
+    const cred  = await signInWithEmailAndPassword(auth, email, password);
+    const uid   = cred.user.uid;
+
+    // Check banned
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (snap.exists() && snap.data().banned) {
+      await auth.signOut();
+      showErr('loginErr', 'ACCOUNT BANNED — CONTACT ADMIN');
+      setLoading('loginBtn','loginBtnText', false, 'ENTER SYSTEM');
+      return;
+    }
+
+    // Update login stats
+    const ip   = await getIP();
+    const info = getDeviceInfo();
+    await setDoc(doc(db, 'users', uid), {
+      lastSeen:     serverTimestamp(),
+      online:       true,
+      lastIP:       ip,
+      device:       info.device,
+      browser:      info.browser,
+      totalLogins:  increment(1),
+      failedLogins: 0,
+    }, { merge: true });
+
+    // Store session
+    sessionStorage.setItem('vehiq_uid', uid);
+    sessionStorage.setItem('vehiq_user', username);
+    window.location.href = 'index.html';
+
+  } catch(e) {
+    const code = e.code || '';
+    const msg  = code === 'auth/user-not-found'  ? 'USERNAME NOT FOUND'
+               : code === 'auth/wrong-password'  ? 'INCORRECT PASSWORD'
+               : code === 'auth/too-many-requests' ? 'TOO MANY ATTEMPTS — TRY LATER'
+               : code === 'auth/invalid-credential' ? 'INVALID USERNAME OR PASSWORD'
+               : 'LOGIN FAILED — TRY AGAIN';
+
+    // Track failed attempt
+    try {
+      const email = usernameToEmail(username);
+      // Try to find user and increment failed logins
+      const q = query(collection(db,'users'), where('username','==',username));
+      const qs = await getDocs(q);
+      if (!qs.empty) {
+        await setDoc(doc(db,'users',qs.docs[0].id), { failedLogins: increment(1) }, { merge:true });
+      }
+    } catch{}
+
+    showErr('loginErr', msg);
+    setLoading('loginBtn','loginBtnText', false, 'ENTER SYSTEM');
+  }
+};
+
+// ── Register ──────────────────────────────────────────────────────────────────
+async function doRegister() {
+  clearMsg('regErr'); clearMsg('regOk');
+  const username = document.getElementById('regUser').value.trim().toLowerCase();
+  const password = document.getElementById('regPass').value;
+  const confirm  = document.getElementById('regPassConfirm').value;
+
+  if (!username || !password || !confirm) { showErr('regErr','ALL FIELDS REQUIRED'); return; }
+  if (username.length < 3) { showErr('regErr','USERNAME TOO SHORT — MIN 3 CHARS'); return; }
+  if (username === ADMIN_USER) { showErr('regErr','USERNAME NOT AVAILABLE'); return; }
+  if (!/^[a-z0-9_]+$/.test(username)) { showErr('regErr','USERNAME: LETTERS, NUMBERS, UNDERSCORE ONLY'); return; }
+  if (password.length < 8) { showErr('regErr','PASSWORD TOO SHORT — MIN 8 CHARS'); return; }
+  if (!/\d/.test(password)) { showErr('regErr','PASSWORD NEEDS AT LEAST ONE NUMBER'); return; }
+  if (!/[a-zA-Z]/.test(password)) { showErr('regErr','PASSWORD NEEDS AT LEAST ONE LETTER'); return; }
+  if (password !== confirm) { showErr('regErr','PASSWORDS DO NOT MATCH'); return; }
+
+  setLoading('regBtn','regBtnText', true);
+
+  try {
+    // Check username uniqueness
+    const q  = query(collection(db,'users'), where('username','==',username));
+    const qs = await getDocs(q);
+    if (!qs.empty) { showErr('regErr','USERNAME TAKEN — CHOOSE ANOTHER'); setLoading('regBtn','regBtnText', false, 'CREATE ACCOUNT'); return; }
+
+    const email = usernameToEmail(username);
+    const cred  = await createUserWithEmailAndPassword(auth, email, password);
+    const uid   = cred.user.uid;
+    const ip    = await getIP();
+    const info  = getDeviceInfo();
+
+    await setDoc(doc(db,'users',uid), {
+      uid,
+      username,
+      email,
+      createdAt:    serverTimestamp(),
+      lastSeen:     serverTimestamp(),
+      online:       true,
+      banned:       false,
+      searchCount:  0,
+      searchLimit:  100,
+      searchHistory:[],
+      totalLogins:  1,
+      failedLogins: 0,
+      lastIP:       ip,
+      device:       info.device,
+      browser:      info.browser,
+      regSource:    info.device,
+    });
+
+    sessionStorage.setItem('vehiq_uid', uid);
+    sessionStorage.setItem('vehiq_user', username);
+    showOk('regOk', 'ACCOUNT CREATED — REDIRECTING...');
+    setTimeout(() => { window.location.href = 'index.html'; }, 1200);
+
+  } catch(e) {
+    const msg = e.code === 'auth/email-already-in-use' ? 'USERNAME TAKEN — CHOOSE ANOTHER'
+              : e.code === 'auth/weak-password'        ? 'PASSWORD TOO WEAK'
+              : 'REGISTRATION FAILED — TRY AGAIN';
+    showErr('regErr', msg);
+    setLoading('regBtn','regBtnText', false, 'CREATE ACCOUNT');
+  }
+};
+
+// Allow Enter key
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const tab = document.getElementById('tabLogin').classList.contains('active');
+  if (tab) doLogin(); else doRegister();
+});
+
+// Wire buttons
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+document.getElementById('regBtn').addEventListener('click', doRegister);
+document.getElementById('regPass').addEventListener('input', e => checkPwRules(e.target.value));
+
+</script>
+
+<script>
+function switchTab(t) {
+  document.getElementById('formLogin').classList.toggle('hidden', t !== 'login');
+  document.getElementById('formRegister').classList.toggle('hidden', t !== 'register');
+  document.getElementById('tabLogin').classList.toggle('active', t === 'login');
+  document.getElementById('tabRegister').classList.toggle('active', t === 'register');
+}
+function toggleTheme() {
+  const h = document.documentElement;
+  h.setAttribute('data-theme', h.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+</script>
+
+</body>
+</html>
