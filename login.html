@@ -417,11 +417,12 @@ async function doLogin() {
 
   } catch(e) {
     const code = e.code || '';
-    const msg  = code === 'auth/user-not-found'  ? 'USERNAME NOT FOUND'
-               : code === 'auth/wrong-password'  ? 'INCORRECT PASSWORD'
-               : code === 'auth/too-many-requests' ? 'TOO MANY ATTEMPTS — TRY LATER'
-               : code === 'auth/invalid-credential' ? 'INVALID USERNAME OR PASSWORD'
-               : 'LOGIN FAILED — TRY AGAIN';
+    const msg  = code === 'auth/user-not-found'       ? 'USERNAME NOT FOUND'
+               : code === 'auth/wrong-password'       ? 'INCORRECT PASSWORD'
+               : code === 'auth/too-many-requests'    ? 'TOO MANY ATTEMPTS — TRY LATER'
+               : code === 'auth/invalid-credential'   ? 'INVALID USERNAME OR PASSWORD'
+               : code === 'auth/network-request-failed' ? 'NETWORK ERROR — CHECK CONNECTION'
+               : code || e.message || 'LOGIN FAILED — TRY AGAIN';
 
     // Track failed attempt
     try {
@@ -496,7 +497,11 @@ async function doRegister() {
   } catch(e) {
     const msg = e.code === 'auth/email-already-in-use' ? 'USERNAME TAKEN — CHOOSE ANOTHER'
               : e.code === 'auth/weak-password'        ? 'PASSWORD TOO WEAK'
-              : 'REGISTRATION FAILED — TRY AGAIN';
+              : e.code === 'auth/operation-not-allowed' ? 'EMAIL/PASSWORD AUTH NOT ENABLED — CHECK FIREBASE CONSOLE'
+              : e.code === 'auth/invalid-email'         ? 'INVALID EMAIL FORMAT — CONTACT SUPPORT'
+              : e.code === 'auth/network-request-failed' ? 'NETWORK ERROR — CHECK CONNECTION'
+              : e.code === 'permission-denied'           ? 'FIRESTORE RULES BLOCKING WRITE — CHECK RULES'
+              : (e.code || e.message || 'UNKNOWN ERROR');
     showErr('regErr', msg);
     setLoading('regBtn','regBtnText', false, 'CREATE ACCOUNT');
   }
