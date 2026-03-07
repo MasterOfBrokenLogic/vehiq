@@ -1986,22 +1986,6 @@ async function doSearch() {
   const raw = inp.value.trim();
   if (!raw) { inp.focus(); return; }
 
-  // Check limit before doing anything
-  if (currentUID) {
-    const snap = await getDoc(doc(db,'users',currentUID));
-    const data = snap.data() || {};
-    const today = new Date().toISOString().slice(0,10);
-    const todayCount = data.lastSearchDate === today ? (data.todaySearchCount || 0) : 0;
-    const limit = data.searchLimit || 100;
-    if (todayCount >= limit) {
-      hide('resultWrap'); hide('errorBox');
-      document.getElementById('errorMsg').textContent =
-        `DAILY SEARCH LIMIT REACHED (${limit}/day). Contact admin to increase your limit.`;
-      show('errorBox');
-      return;
-    }
-  }
-
   const rc = normalizeRC(raw);
   if (!rc) {
     hide('resultWrap'); hide('errorBox');
