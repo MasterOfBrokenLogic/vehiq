@@ -2136,11 +2136,8 @@ onAuthStateChanged(auth, async user => {
 });
 
 // ── Mark offline on tab close ─────────────────────────────────────────────────
-window.addEventListener('beforeunload', () => {
+window.addEventListener('pagehide', () => {
   if (currentUID) {
-    // Use beacon for reliability
-    const url = `https://firestore.googleapis.com/v1/projects/vehiq-1/databases/(default)/documents/users/${currentUID}`;
-    navigator.sendBeacon(url, JSON.stringify({ online: false }));
     updateDoc(doc(db,'users',currentUID), { online:false, lastSeen:serverTimestamp() }).catch(()=>{});
   }
 });
