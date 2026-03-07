@@ -409,10 +409,10 @@ import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.12.0/fire
 import { getAuth }         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getFirestore, collection, getDocs, doc, updateDoc,
-  query, orderBy
+  query, orderBy, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// ── Firebase config — REPLACE WITH YOUR VALUES ───────────────────────────────
+// ── Firebase config ───────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey:            "AIzaSyBiwG3T-0-XldP0cpcBUjig13_heeowlJg",
   authDomain:        "vehiq-1.firebaseapp.com",
@@ -420,16 +420,41 @@ const firebaseConfig = {
   storageBucket:     "vehiq-1.firebasestorage.app",
   messagingSenderId: "316723801896",
   appId:             "1:316723801896:web:057c88b2ce76abf7efea1d",
-  measurementId: "G-T3TT2GPY9B"
+  measurementId:     "G-T3TT2GPY9B"
 };
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
-// ── Auth guard ────────────────────────────────────────────────────────────────
-if (sessionStorage.getItem('vehiq_admin') !== '1') {
-  window.location.href = 'login.html';
+// ── Auth guard — server-side token verification ───────────────────────────────
+// Hide page until verified — prevent any flash
+document.body.style.visibility = 'hidden';
+
+const _adminToken = sessionStorage.getItem('vehiq_admin_token');
+
+async function verifyAdminToken() {
+  if (!_adminToken) { window.location.href = 'login.html'; return false; }
+  try {
+    const res = await fetch('/api/admin/verify', {
+      headers: { 'X-Admin-Token': _adminToken }
+    });
+    if (!res.ok) {
+      sessionStorage.removeItem('vehiq_admin_token');
+      window.location.href = 'login.html';
+      return false;
+    }
+    document.body.style.visibility = 'visible';
+    return true;
+  } catch {
+    window.location.href = 'login.html';
+    return false;
+  }
+}
+
+// Helper — attach token to every admin API call (future use)
+function adminHeaders() {
+  return { 'X-Admin-Token': _adminToken, 'Content-Type': 'application/json' };
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -453,26 +478,25 @@ function timeSince(ts) {
   return Math.floor(sec/86400) + 'd ago';
 }
 
-// ── Load all ──────────────────────────────────────────────────────────────────
-async function loadAll() {
-  document.getElementById('userGrid').innerHTML =
-    '<div class="no-users"><span class="spin"></span> LOADING...</div>';
+// ── Load all — real-time listener ─────────────────────────────────────────────
+function loadAll() {
+  const q = query(collection(db,'users'), orderBy('createdAt','desc'));
 
-  const snap = await getDocs(query(collection(db,'users'), orderBy('createdAt','desc')));
-  allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  onSnapshot(q, snap => {
+    allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  // Stats
-  const online  = allUsers.filter(u => u.online).length;
-  const banned  = allUsers.filter(u => u.banned).length;
-  const searches = allUsers.reduce((a,u) => a + (u.searchCount||0), 0);
-  document.getElementById('statTotal').textContent   = allUsers.length;
-  document.getElementById('statOnline').textContent  = online;
-  document.getElementById('statBanned').textContent  = banned;
-  document.getElementById('statSearches').textContent = searches;
+    const online   = allUsers.filter(u => u.online).length;
+    const banned   = allUsers.filter(u => u.banned).length;
+    const searches = allUsers.reduce((a,u) => a + (u.searchCount||0), 0);
+    document.getElementById('statTotal').textContent    = allUsers.length;
+    document.getElementById('statOnline').textContent   = online;
+    document.getElementById('statBanned').textContent   = banned;
+    document.getElementById('statSearches').textContent = searches;
 
-  renderSessions();
-  renderTable(allUsers);
-};
+    renderSessions();
+    renderTable(allUsers);
+  });
+}
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
 function renderSessions() {
@@ -598,7 +622,6 @@ function banUser(uid, username) {
   showConfirm('BAN USER: ' + username.toUpperCase(),
     'This will block ' + username + ' from logging in.', async () => {
     await updateDoc(doc(db,'users',uid), { banned: true, online: false });
-    await loadAll();
   });
 }
 
@@ -606,7 +629,6 @@ function unbanUser(uid, username) {
   showConfirm('UNBAN USER: ' + username.toUpperCase(),
     'This will restore ' + username + "'s access.", async () => {
     await updateDoc(doc(db,'users',uid), { banned: false });
-    await loadAll();
   });
 }
 
@@ -614,7 +636,6 @@ function forceLogout(uid, username) {
   showConfirm('FORCE LOGOUT: ' + username.toUpperCase(),
     'This will mark ' + username + ' as offline and invalidate their session.', async () => {
     await updateDoc(doc(db,'users',uid), { online: false, forceLogout: true });
-    await loadAll();
   });
 }
 
@@ -632,7 +653,6 @@ async function confirmLimit() {
   if (isNaN(val) || val < 1) return;
   await updateDoc(doc(db,'users',limitTarget.uid), { searchLimit: val });
   closeModal('limitModal');
-  await loadAll();
 }
 
 async function showHistory(uid, username) {
@@ -711,15 +731,16 @@ document.querySelector('.search-input')
 
 // ── Logout ────────────────────────────────────────────────────────────────────
 function adminLogout() {
-  sessionStorage.removeItem('vehiq_admin');
+  // Revoke token server-side so it can't be reused
+  fetch('/api/admin/logout', { method: 'POST', headers: adminHeaders() }).catch(() => {});
+  sessionStorage.removeItem('vehiq_admin_token');
   window.location.href = 'login.html';
 }
 document.querySelector('.logout-btn').addEventListener('click', adminLogout);
 document.querySelector('.refresh-btn').addEventListener('click', loadAll);
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-loadAll();
-setInterval(loadAll, 30000);
+// ── Init — verify token before showing anything ───────────────────────────────
+verifyAdminToken().then(ok => { if (ok) loadAll(); });
 
 </script>
 

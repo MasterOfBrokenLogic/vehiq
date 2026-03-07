@@ -2055,12 +2055,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey:            "REPLACE_apiKey",
-  authDomain:        "REPLACE_authDomain",
-  projectId:         "REPLACE_projectId",
-  storageBucket:     "REPLACE_storageBucket",
-  messagingSenderId: "REPLACE_messagingSenderId",
-  appId:             "REPLACE_appId"
+  apiKey:            "AIzaSyBiwG3T-0-XldP0cpcBUjig13_heeowlJg",
+  authDomain:        "vehiq-1.firebaseapp.com",
+  projectId:         "vehiq-1",
+  storageBucket:     "vehiq-1.firebasestorage.app",
+  messagingSenderId: "316723801896",
+  appId:             "1:316723801896:web:057c88b2ce76abf7efea1d",
+  measurementId:     "G-T3TT2GPY9B"
 };
 
 const app  = initializeApp(firebaseConfig);
@@ -2122,7 +2123,7 @@ onAuthStateChanged(auth, async user => {
 window.addEventListener('beforeunload', () => {
   if (currentUID) {
     // Use beacon for reliability
-    const url = `https://firestore.googleapis.com/v1/projects/REPLACE_projectId/databases/(default)/documents/users/${currentUID}`;
+    const url = `https://firestore.googleapis.com/v1/projects/vehiq-1/databases/(default)/documents/users/${currentUID}`;
     navigator.sendBeacon(url, JSON.stringify({ online: false }));
     updateDoc(doc(db,'users',currentUID), { online:false, lastSeen:serverTimestamp() }).catch(()=>{});
   }
