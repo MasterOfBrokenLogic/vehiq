@@ -1981,14 +1981,6 @@ function copyText(text, btn) {
   });
 }
 
-// ── Full Screen ───────────────────────────────────────────────────────────────
-document.addEventListener('click', function tryFullscreen() {
-  if (document.documentElement.requestFullscreen) {
-    document.documentElement.requestFullscreen().catch(() => {});
-  }
-  document.removeEventListener('click', tryFullscreen);
-}, { once: true });
-
 // ── Search ────────────────────────────────────────────────────────────────────
 async function doSearch() {
   const raw = inp.value.trim();
