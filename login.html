@@ -293,6 +293,11 @@ onAuthStateChanged(auth, async user => {
       showErr('loginErr', 'ACCOUNT BANNED — CONTACT ADMIN');
       return;
     }
+    // If user doc doesn't exist, sign them out so they can re-register cleanly
+    if (!snap.exists()) {
+      await auth.signOut();
+      return;
+    }
     window.location.href = '/';
   }
 });
@@ -366,13 +371,10 @@ async function doLogin() {
     });
     if (res.ok) {
       const data = await res.json();
-      // Store signed server token — not a simple flag
       sessionStorage.setItem('vehiq_admin_token', data.token);
       window.location.href = 'admin.html';
       return;
     }
-    // 401 = not admin, fall through to regular login
-    // Any other error = server problem
     if (res.status !== 401) throw new Error('Server error');
   } catch(e) {
     if (e.message === 'Server error') {
@@ -380,7 +382,6 @@ async function doLogin() {
       setLoading('loginBtn','loginBtnText', false, 'ENTER SYSTEM');
       return;
     }
-    // Network error — fall through to regular login
   }
 
   try {
@@ -390,7 +391,16 @@ async function doLogin() {
 
     // Check banned
     const snap = await getDoc(doc(db, 'users', uid));
-    if (snap.exists() && snap.data().banned) {
+
+    // If Firestore doc missing, sign out and show error
+    if (!snap.exists()) {
+      await auth.signOut();
+      showErr('loginErr', 'ACCOUNT INCOMPLETE — PLEASE REGISTER AGAIN');
+      setLoading('loginBtn','loginBtnText', false, 'ENTER SYSTEM');
+      return;
+    }
+
+    if (snap.data().banned) {
       await auth.signOut();
       showErr('loginErr', 'ACCOUNT BANNED — CONTACT ADMIN');
       setLoading('loginBtn','loginBtnText', false, 'ENTER SYSTEM');
@@ -403,6 +413,7 @@ async function doLogin() {
     await setDoc(doc(db, 'users', uid), {
       lastSeen:     serverTimestamp(),
       online:       true,
+      forceLogout:  false,
       lastIP:       ip,
       device:       info.device,
       browser:      info.browser,
@@ -410,24 +421,21 @@ async function doLogin() {
       failedLogins: 0,
     }, { merge: true });
 
-    // Store session
     sessionStorage.setItem('vehiq_uid', uid);
     sessionStorage.setItem('vehiq_user', username);
     window.location.href = '/';
 
   } catch(e) {
     const code = e.code || '';
-    const msg  = code === 'auth/user-not-found'       ? 'USERNAME NOT FOUND'
-               : code === 'auth/wrong-password'       ? 'INCORRECT PASSWORD'
-               : code === 'auth/too-many-requests'    ? 'TOO MANY ATTEMPTS — TRY LATER'
-               : code === 'auth/invalid-credential'   ? 'INVALID USERNAME OR PASSWORD'
+    const msg  = code === 'auth/user-not-found'         ? 'USERNAME NOT FOUND'
+               : code === 'auth/wrong-password'         ? 'INCORRECT PASSWORD'
+               : code === 'auth/too-many-requests'      ? 'TOO MANY ATTEMPTS — TRY LATER'
+               : code === 'auth/invalid-credential'     ? 'INVALID USERNAME OR PASSWORD'
                : code === 'auth/network-request-failed' ? 'NETWORK ERROR — CHECK CONNECTION'
                : code || e.message || 'LOGIN FAILED — TRY AGAIN';
 
     // Track failed attempt
     try {
-      const email = usernameToEmail(username);
-      // Try to find user and increment failed logins
       const q = query(collection(db,'users'), where('username','==',username));
       const qs = await getDocs(q);
       if (!qs.empty) {
@@ -462,7 +470,11 @@ async function doRegister() {
     // Check username uniqueness
     const q  = query(collection(db,'users'), where('username','==',username));
     const qs = await getDocs(q);
-    if (!qs.empty) { showErr('regErr','USERNAME TAKEN — CHOOSE ANOTHER'); setLoading('regBtn','regBtnText', false, 'CREATE ACCOUNT'); return; }
+    if (!qs.empty) {
+      showErr('regErr','USERNAME TAKEN — CHOOSE ANOTHER');
+      setLoading('regBtn','regBtnText', false, 'CREATE ACCOUNT');
+      return;
+    }
 
     const email = usernameToEmail(username);
     const cred  = await createUserWithEmailAndPassword(auth, email, password);
@@ -470,37 +482,56 @@ async function doRegister() {
     const ip    = await getIP();
     const info  = getDeviceInfo();
 
-    await setDoc(doc(db,'users',uid), {
-      uid,
-      username,
-      email,
-      createdAt:    serverTimestamp(),
-      lastSeen:     serverTimestamp(),
-      online:       true,
-      banned:       false,
-      searchCount:  0,
-      searchLimit:  100,
-      searchHistory:[],
-      totalLogins:  1,
-      failedLogins: 0,
-      lastIP:       ip,
-      device:       info.device,
-      browser:      info.browser,
-      regSource:    info.device,
-    });
+    // Retry Firestore write up to 3 times
+    let written = false;
+    for (let i = 0; i < 3; i++) {
+      try {
+        await setDoc(doc(db,'users',uid), {
+          uid,
+          username,
+          email,
+          createdAt:     serverTimestamp(),
+          lastSeen:      serverTimestamp(),
+          online:        true,
+          banned:        false,
+          forceLogout:   false,
+          searchCount:   0,
+          searchLimit:   100,
+          searchHistory: [],
+          totalLogins:   1,
+          failedLogins:  0,
+          lastIP:        ip,
+          device:        info.device,
+          browser:       info.browser,
+          regSource:     info.device,
+        });
+        written = true;
+        break;
+      } catch(retryErr) {
+        if (i === 2) {
+          // All 3 retries failed — delete Auth account so they can try again cleanly
+          await cred.user.delete().catch(() => {});
+          throw new Error('permission-denied');
+        }
+        // Wait 1 second before retrying
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
 
-    sessionStorage.setItem('vehiq_uid', uid);
-    sessionStorage.setItem('vehiq_user', username);
-    showOk('regOk', 'ACCOUNT CREATED — REDIRECTING...');
-    setTimeout(() => { window.location.href = '/'; }, 1200);
+    if (written) {
+      sessionStorage.setItem('vehiq_uid', uid);
+      sessionStorage.setItem('vehiq_user', username);
+      showOk('regOk', 'ACCOUNT CREATED — REDIRECTING...');
+      setTimeout(() => { window.location.href = '/'; }, 1200);
+    }
 
   } catch(e) {
-    const msg = e.code === 'auth/email-already-in-use' ? 'USERNAME TAKEN — CHOOSE ANOTHER'
-              : e.code === 'auth/weak-password'        ? 'PASSWORD TOO WEAK'
+    const msg = e.code === 'auth/email-already-in-use'  ? 'USERNAME TAKEN — CHOOSE ANOTHER'
+              : e.code === 'auth/weak-password'         ? 'PASSWORD TOO WEAK'
               : e.code === 'auth/operation-not-allowed' ? 'EMAIL/PASSWORD AUTH NOT ENABLED — CHECK FIREBASE CONSOLE'
               : e.code === 'auth/invalid-email'         ? 'INVALID EMAIL FORMAT — CONTACT SUPPORT'
-              : e.code === 'auth/network-request-failed' ? 'NETWORK ERROR — CHECK CONNECTION'
-              : e.code === 'permission-denied'           ? 'FIRESTORE RULES BLOCKING WRITE — CHECK RULES'
+              : e.code === 'auth/network-request-failed'? 'NETWORK ERROR — CHECK CONNECTION'
+              : e.message === 'permission-denied'       ? 'REGISTRATION FAILED — PLEASE TRY AGAIN'
               : (e.code || e.message || 'UNKNOWN ERROR');
     showErr('regErr', msg);
     setLoading('regBtn','regBtnText', false, 'CREATE ACCOUNT');
