@@ -90,8 +90,8 @@ if __name__ == "__main__":
   ╔══════════════════════════════════════════════════╗
   ║           VEHIQ — VEHICLE INTELLIGENCE           ║
   ╠══════════════════════════════════════════════════╣
-  ║  Local :  https://localhost:{port}               ║
-  ║  Mobile:  https://{local_ip}:{port}              ║
+  ║  Local :  https://localhost:{port}                   ║
+  ║  Mobile:  https://{local_ip}:{port}
   ╠══════════════════════════════════════════════════╣
   ║  On mobile: tap Advanced → Proceed (cert warn)   ║
   ║  is normal — camera WILL work!                   ║
@@ -104,8 +104,8 @@ if __name__ == "__main__":
   ╔══════════════════════════════════════════════════╗
   ║           VEHIQ — VEHICLE INTELLIGENCE           ║
   ╠══════════════════════════════════════════════════╣
-  ║  Local :  http://localhost:{port}                ║
-  ║  Mobile:  http://{local_ip}:{port}               ║
+  ║  Local :  http://localhost:{port}                    ║
+  ║  Mobile:  http://{local_ip}:{port}
   ╠══════════════════════════════════════════════════╣
   ║  HTTP mode — camera won't work on mobile         ║
   ║  Install openssl to enable HTTPS locally.        ║
