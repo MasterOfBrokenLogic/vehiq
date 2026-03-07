@@ -293,7 +293,7 @@ onAuthStateChanged(auth, async user => {
       showErr('loginErr', 'ACCOUNT BANNED — CONTACT ADMIN');
       return;
     }
-    window.location.href = 'index.html';
+    window.location.href = '/';
   }
 });
 
@@ -413,7 +413,7 @@ async function doLogin() {
     // Store session
     sessionStorage.setItem('vehiq_uid', uid);
     sessionStorage.setItem('vehiq_user', username);
-    window.location.href = 'index.html';
+    window.location.href = '/';
 
   } catch(e) {
     const code = e.code || '';
@@ -492,7 +492,7 @@ async function doRegister() {
     sessionStorage.setItem('vehiq_uid', uid);
     sessionStorage.setItem('vehiq_user', username);
     showOk('regOk', 'ACCOUNT CREATED — REDIRECTING...');
-    setTimeout(() => { window.location.href = 'index.html'; }, 1200);
+    setTimeout(() => { window.location.href = '/'; }, 1200);
 
   } catch(e) {
     const msg = e.code === 'auth/email-already-in-use' ? 'USERNAME TAKEN — CHOOSE ANOTHER'
